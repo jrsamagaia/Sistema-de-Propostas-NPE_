@@ -89,17 +89,17 @@ export default function CustosFixos({
   const totalRates = rates.reduce((a, b) => a + b.percentage, 0);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-fade-in">
+    <div className="max-w-6xl mx-auto space-y-4 animate-fade-in">
       <div>
-        <h2 className="text-xl font-bold text-slate-800 tracking-tight">Custos Fixos e Precificação</h2>
-        <p className="text-sm text-slate-500 font-medium font-sans">Gerencie despesas operacionais e as taxas que compõem o Preço de Venda.</p>
+        <h2 className="text-lg font-bold text-slate-800 tracking-tight">Custos Fixos e Precificação</h2>
+        <p className="text-xs text-slate-500 font-medium font-sans">Gerencie despesas operacionais e as taxas que compõem o Preço de Venda.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-base font-bold text-slate-800 tracking-tight">Despesas Fixas Mensais</h3>
-            <span className="bg-rose-50 text-rose-700 border border-rose-100 px-3 py-1 rounded-full text-xs font-bold">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col h-full">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-sm font-bold text-slate-800 tracking-tight">Despesas Fixas Mensais</h3>
+            <span className="bg-rose-50 text-rose-700 border border-rose-100 px-2.5 py-0.5 rounded-full text-xs font-bold">
               Total: R$ {totalCosts.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </span>
           </div>

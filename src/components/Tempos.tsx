@@ -52,14 +52,14 @@ export default function Tempos({
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-4xl mx-auto space-y-4 animate-fade-in">
       <div>
-        <h2 className="text-3xl font-bold text-slate-800">Tempo de Processos</h2>
-        <p className="text-slate-500 font-medium">Mapeamento do tempo investido na execução de tarefas específicas.</p>
+        <h2 className="text-lg font-bold text-slate-800 tracking-tight">Tempo de Processos</h2>
+        <p className="text-xs text-slate-500 font-medium">Mapeamento do tempo investido na execução de tarefas específicas.</p>
       </div>
 
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-4 mb-6">
+      <div className="bg-white p-5 rounded-xl shadow-xs border border-slate-200">
+        <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-3 mb-5">
           <input 
             type="text" 
             placeholder="Ação (Ex: Criação de Capa)" 

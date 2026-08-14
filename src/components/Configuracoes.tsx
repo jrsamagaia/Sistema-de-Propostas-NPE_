@@ -298,20 +298,20 @@ export default function Configuracoes({
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in" id="config-panel">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-100 pb-4">
+    <div className="max-w-5xl mx-auto space-y-4 animate-fade-in" id="config-panel">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-200 pb-3 gap-3">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Painel de Configurações</h2>
-          <p className="text-slate-500 font-medium">Configure as integrações de envio (WhatsApp e E-mail) ou gerencie os backups do sistema.</p>
+          <h2 className="text-lg font-bold text-slate-800 tracking-tight">Painel de Configurações</h2>
+          <p className="text-xs text-slate-500 font-medium">Configure as integrações de envio (WhatsApp e E-mail) ou gerencie os backups do sistema.</p>
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex bg-slate-100 p-1 rounded-lg mt-4 md:mt-0 self-start">
+        <div className="flex bg-slate-100 p-1 rounded-lg self-start">
           <button
             onClick={() => setActiveTab('servers')}
-            className={`px-4 py-2 rounded-md text-sm font-semibold transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'servers'
-                ? 'bg-white text-slate-800 shadow-sm'
+                ? 'bg-white text-slate-800 shadow-xs'
                 : 'text-slate-600 hover:text-slate-800'
             }`}
             id="tab-servers-btn"
@@ -320,9 +320,9 @@ export default function Configuracoes({
           </button>
           <button
             onClick={() => setActiveTab('backup')}
-            className={`px-4 py-2 rounded-md text-sm font-semibold transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'backup'
-                ? 'bg-white text-slate-800 shadow-sm'
+                ? 'bg-white text-slate-800 shadow-xs'
                 : 'text-slate-600 hover:text-slate-800'
             }`}
             id="tab-backup-btn"

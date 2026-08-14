@@ -1453,13 +1453,13 @@ export default function Propostas({
   const sortedGroupKeys = Object.keys(groups).sort((a, b) => b.localeCompare(a));
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="max-w-6xl mx-auto space-y-4 animate-fade-in">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">
+          <h2 className="text-lg font-bold text-slate-800 tracking-tight">
             {showOnlyApproved ? 'Propostas Aprovadas' : 'Lista de Propostas'}
           </h2>
-          <p className="text-slate-500 font-medium">
+          <p className="text-xs text-slate-500 font-medium">
             {showOnlyApproved 
               ? 'Projetos aprovados e fechados com os clientes, contendo os valores finais e formas de parcelamento acordadas.'
               : 'Histórico de projetos orçados. Use o Kanban para gerenciar o andamento.'}
@@ -1468,16 +1468,16 @@ export default function Propostas({
         {!showOnlyApproved && (
           <button 
             onClick={() => setIsCreating(true)}
-            className="bg-amber-600 hover:bg-amber-700 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 shadow-md transition-colors cursor-pointer"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
           >
-            <Plus size={20} />
+            <Plus size={15} />
             Criar Nova Proposta
           </button>
         )}
       </div>
 
       {/* Filtros e Pesquisa */}
-      <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 grid grid-cols-1 md:grid-cols-12 gap-4 items-end font-sans">
+      <div className="bg-white p-4 rounded-xl shadow-xs border border-slate-200 grid grid-cols-1 md:grid-cols-12 gap-3 items-end font-sans">
         <div className={`${showOnlyApproved ? 'md:col-span-7' : 'md:col-span-4'} space-y-1.5`}>
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Pesquisar</label>
           <div className="relative">

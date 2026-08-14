@@ -15,7 +15,8 @@ import {
   X,
   BookOpen,
   Users,
-  ChevronDown
+  ChevronDown,
+  LogOut
 } from 'lucide-react';
 
 import { Cost, Rate, Supply, Process, Status, Proposal, Lead, IntegrationSetting } from './types';
@@ -512,10 +513,38 @@ export default function App() {
           <NavItem icon={<Settings size={18} />} label="Backup e Dados" active={activeTab === 'config'} onClick={() => setActiveTab('config')} />
         </nav>
 
-        {/* Database Engine Tag from Design */}
-        <div className="p-3 mt-auto bg-slate-800/40 m-3 rounded-lg border border-slate-800 shrink-0">
-          <div className="text-[10px] mb-1 opacity-60 uppercase font-bold text-slate-400">Database Engine</div>
-          <code className="text-[11px] text-amber-400 block font-mono font-medium">Orçamentos NPE</code>
+        {/* User Profile & Logout at Bottom of Sidebar */}
+        <div className="p-2.5 mt-auto bg-slate-800/60 m-3 rounded-xl border border-slate-750/70 shrink-0 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {currentUser?.photoURL ? (
+              <img 
+                src={currentUser.photoURL} 
+                alt={currentUser.displayName || "User"} 
+                className="w-8 h-8 rounded-full border border-slate-700 shrink-0 object-cover" 
+                referrerPolicy="no-referrer" 
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-indigo-600 border border-indigo-500/50 flex items-center justify-center font-bold text-white text-xs shrink-0">
+                {(currentUser?.displayName || currentUser?.email || "U").charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-semibold text-slate-200 truncate leading-tight" title={currentUser?.displayName || currentUser?.email || ''}>
+                {currentUser?.displayName || currentUser?.email}
+              </span>
+              <span className="text-[10px] text-slate-400 truncate leading-tight">
+                Editora NPE
+              </span>
+            </div>
+          </div>
+          <button 
+            onClick={() => signOut(auth)}
+            className="text-[11px] text-red-400 hover:text-red-300 hover:bg-red-950/40 px-2 py-1 rounded-md font-bold tracking-wider transition-colors cursor-pointer shrink-0 uppercase flex items-center gap-1"
+            title="Sair do sistema"
+          >
+            <LogOut size={13} />
+            <span>Sair</span>
+          </button>
         </div>
       </aside>
 
@@ -654,89 +683,98 @@ export default function App() {
           </button>
         </nav>
 
-        <div className="p-4 bg-slate-800/40 m-4 rounded-lg border border-slate-800">
-          <div className="text-[10px] mb-1 opacity-60 uppercase font-bold text-slate-400">Database Engine</div>
-          <code className="text-[11px] text-amber-400 block font-mono font-medium">Orçamentos NPE</code>
+        {/* User Profile & Logout at Bottom of Mobile Sidebar */}
+        <div className="p-3 bg-slate-800/60 m-3 rounded-xl border border-slate-750/70 shrink-0 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {currentUser?.photoURL ? (
+              <img 
+                src={currentUser.photoURL} 
+                alt={currentUser.displayName || "User"} 
+                className="w-8 h-8 rounded-full border border-slate-700 shrink-0 object-cover" 
+                referrerPolicy="no-referrer" 
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-indigo-600 border border-indigo-500/50 flex items-center justify-center font-bold text-white text-xs shrink-0">
+                {(currentUser?.displayName || currentUser?.email || "U").charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-semibold text-slate-200 truncate leading-tight">
+                {currentUser?.displayName || currentUser?.email}
+              </span>
+              <span className="text-[10px] text-slate-400 truncate leading-tight">
+                Editora NPE
+              </span>
+            </div>
+          </div>
+          <button 
+            onClick={() => signOut(auth)}
+            className="text-[11px] text-red-400 hover:text-red-300 hover:bg-red-950/40 px-2 py-1 rounded-md font-bold tracking-wider transition-colors cursor-pointer shrink-0 uppercase flex items-center gap-1"
+          >
+            <LogOut size={13} />
+            <span>Sair</span>
+          </button>
         </div>
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         
-        {/* Top Header - Matching ConnectFlow styling (Desktop only) */}
-        <header className="h-16 bg-white border-b border-slate-200 hidden md:flex items-center justify-between px-8 shrink-0 z-10 shadow-sm">
-          <h1 className="text-lg font-semibold text-slate-800 tracking-tight">
+        {/* Top Header - Compact, High-Efficiency Navigation */}
+        <header className="h-12 bg-white border-b border-slate-200 hidden md:flex items-center justify-between px-5 shrink-0 z-10 shadow-xs">
+          <h1 className="text-sm md:text-base font-bold text-slate-800 tracking-tight">
             {activeTab === 'dashboard' && 'Visão Geral'}
-            {activeTab === 'kanban' && 'Funil de Vendas'}
+            {activeTab === 'kanban' && 'Painel de Negócios (Funil)'}
             {activeTab === 'leads' && 'Contatos e Leads'}
-            {activeTab === 'custos' && 'Configuração de Despesas & Precificação'}
+            {activeTab === 'custos' && 'Despesas & Precificação'}
             {activeTab === 'insumos' && 'Catálogo Geral de Insumos'}
-            {activeTab === 'tempos' && 'Tempo de Processos Mapeados'}
+            {activeTab === 'tempos' && 'Tempo de Processos'}
             {activeTab === 'laudas' && 'Calculadora de Laudas'}
             {activeTab === 'propostas' && 'Propostas em Andamento'}
             {activeTab === 'propostas-aprovadas' && 'Propostas Aprovadas'}
-            {activeTab === 'config' && 'Backup de Configurações'}
+            {activeTab === 'config' && 'Backup e Dados'}
           </h1>
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-slate-500 uppercase font-mono text-[10px]">Auth: Google</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-              <span className="text-slate-500 uppercase font-mono text-[10px]">Firestore: Active</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col items-end text-right">
-                <span className="text-[11px] font-semibold text-slate-700">{currentUser?.displayName || currentUser?.email}</span>
-                <button 
-                  onClick={() => signOut(auth)}
-                  className="text-[9px] text-red-500 hover:text-red-600 font-bold tracking-wider transition-colors cursor-pointer uppercase"
-                >
-                  Sair
-                </button>
-              </div>
-              {currentUser?.photoURL ? (
-                <img src={currentUser.photoURL} alt={currentUser.displayName || "User"} className="w-8 h-8 rounded-full border border-slate-200 hover:scale-105 duration-200" referrerPolicy="no-referrer" />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-500 text-xs">
-                  {(currentUser?.displayName || currentUser?.email || "U").charAt(0).toUpperCase()}
-                </div>
-              )}
-            </div>
-          </div>
+          
+          <button
+            onClick={() => {
+              setProposalToEdit('new');
+              setActiveTab('propostas');
+            }}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs hover:shadow-sm transition-all cursor-pointer whitespace-nowrap"
+          >
+            <Plus size={14} />
+            <span>Nova Proposta</span>
+          </button>
         </header>
 
         {/* Mobile menu header */}
-        <header className="md:hidden bg-slate-900 text-white px-4 py-3.5 flex justify-between items-center shadow-md shrink-0 z-10">
-          <button 
-            onClick={() => setIsMobileMenuOpen(true)}
-            className="p-1 text-slate-300 hover:text-white transition-colors cursor-pointer"
-            aria-label="Toggle menu"
-          >
-            <Menu size={22} />
-          </button>
-          
-          <h1 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
-            <span>Editora NPE</span>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
-          </h1>
-
-          <div className="flex items-center gap-1 bg-slate-800/80 px-2 py-1 rounded text-[10px] font-bold text-amber-500 border border-slate-700 uppercase">
-            {activeTab === 'dashboard' && 'Dashboard'}
-            {activeTab === 'kanban' && 'Kanban'}
-            {activeTab === 'leads' && 'Leads'}
-            {activeTab === 'custos' && 'Custos'}
-            {activeTab === 'insumos' && 'Insumos'}
-            {activeTab === 'tempos' && 'Tempos'}
-            {activeTab === 'laudas' && 'Laudas'}
-            {activeTab === 'propostas' && 'Andamento'}
-            {activeTab === 'propostas-aprovadas' && 'Aprovadas'}
-            {activeTab === 'config' && 'Backup'}
+        <header className="md:hidden bg-slate-900 text-white px-3.5 py-2.5 flex justify-between items-center shadow-md shrink-0 z-10">
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="p-1 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              aria-label="Toggle menu"
+            >
+              <Menu size={20} />
+            </button>
+            <h1 className="text-xs font-bold text-white truncate max-w-[150px]">
+              {activeTab === 'kanban' ? 'Painel (Funil)' : 'Editora NPE'}
+            </h1>
           </div>
+
+          <button
+            onClick={() => {
+              setProposalToEdit('new');
+              setActiveTab('propostas');
+            }}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded text-[11px] font-semibold flex items-center gap-1 shadow-sm transition-all"
+          >
+            <Plus size={13} />
+            <span>Nova</span>
+          </button>
         </header>
 
         {/* Main Content Pane */}
-        <div className="flex-1 overflow-auto p-4 md:p-8 bg-slate-50/50">
+        <div className="flex-1 overflow-auto p-3.5 md:p-5 bg-slate-50/50">
           
           {notification && (
             <div className="fixed top-4 right-4 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-2 animate-bounce z-50 font-semibold border border-emerald-500">
@@ -880,20 +918,6 @@ export default function App() {
             <span className="text-[10px] font-semibold">Menu</span>
           </button>
         </nav>
-
-        {/* Footer Bar - Desktop Only */}
-        <footer className="h-10 bg-white border-t border-slate-200 px-8 hidden md:flex items-center justify-between text-[11px] text-slate-400 shrink-0 z-10 shadow-sm">
-          <div className="flex gap-4 font-medium">
-            <span>v1.0.4-production</span>
-            <span>Environment: Active Cloud</span>
-          </div>
-          <div className="flex gap-4 font-semibold text-slate-500">
-            <span className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block animate-pulse"></span> 
-              Todos os sistemas operacionais ativos
-            </span>
-          </div>
-        </footer>
       </main>
     </div>
   );

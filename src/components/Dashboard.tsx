@@ -88,15 +88,15 @@ export default function Dashboard({
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto animate-fade-in">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="space-y-4 max-w-6xl mx-auto animate-fade-in">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
         <div>
-          <h2 className="text-xl font-bold text-slate-800 tracking-tight">Painel de Indicadores</h2>
-          <p className="text-sm text-slate-500">Métricas consolidadas de operação da Editora NPE.</p>
+          <h2 className="text-lg font-bold text-slate-800 tracking-tight">Painel de Indicadores</h2>
+          <p className="text-xs text-slate-500 font-medium">Métricas consolidadas de operação da Editora NPE.</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard 
           icon={<Clock size={18} className="text-amber-500" />} 
           title="Em desenvolvimento" 

@@ -81,18 +81,18 @@ export default function Leads({
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="max-w-6xl mx-auto space-y-4 animate-fade-in">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Cadastro de Leads</h2>
-          <p className="text-slate-500 font-medium">Cadastre e gerencie os contatos dos clientes para envio automático de propostas por WhatsApp.</p>
+          <h2 className="text-lg font-bold text-slate-800 tracking-tight">Cadastro de Leads</h2>
+          <p className="text-xs text-slate-500 font-medium">Cadastre e gerencie os contatos dos clientes para envio automático de propostas por WhatsApp.</p>
         </div>
         {!isFormOpen && (
           <button 
             onClick={() => { resetForm(); setIsFormOpen(true); }}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-semibold flex items-center gap-2 shadow-md transition-colors cursor-pointer"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
           >
-            <UserPlus size={18} />
+            <UserPlus size={15} />
             Cadastrar Lead
           </button>
         )}

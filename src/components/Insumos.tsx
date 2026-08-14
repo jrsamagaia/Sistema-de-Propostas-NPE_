@@ -96,14 +96,14 @@ export default function Insumos({
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-5xl mx-auto space-y-4 animate-fade-in">
       <div>
-        <h2 className="text-3xl font-bold text-slate-800">Catálogo de Insumos</h2>
-        <p className="text-slate-500 font-medium">Cadastre os serviços, impressões e materiais que compõem seus projetos.</p>
+        <h2 className="text-lg font-bold text-slate-800 tracking-tight">Catálogo de Insumos</h2>
+        <p className="text-xs text-slate-500 font-medium">Cadastre os serviços, impressões e materiais que compõem seus projetos.</p>
       </div>
 
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <form onSubmit={handleSubmit} className="space-y-4 mb-8 bg-slate-50 p-5 rounded-lg border border-slate-200 text-left">
+      <div className="bg-white p-5 rounded-xl shadow-xs border border-slate-200">
+        <form onSubmit={handleSubmit} className="space-y-3 mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200 text-left">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
             <div className="md:col-span-5">
               <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Descrição do Serviço ou Material</label>

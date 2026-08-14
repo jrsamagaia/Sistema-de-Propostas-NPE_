@@ -45,27 +45,27 @@ export default function CalculadoraLaudas() {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in font-sans">
+    <div className="max-w-4xl mx-auto space-y-4 animate-fade-in font-sans">
       {/* Page Header */}
       <div>
-        <h2 className="text-3xl font-bold text-slate-800">Calculadora de Laudas</h2>
-        <p className="text-slate-500 font-medium">Converta o número de caracteres em laudas editoriais de forma rápida e precisa.</p>
+        <h2 className="text-lg font-bold text-slate-800 tracking-tight">Calculadora de Laudas</h2>
+        <p className="text-xs text-slate-500 font-medium">Converta o número de caracteres em laudas editoriais de forma rápida e precisa.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         {/* Main calculation card */}
-        <div className="md:col-span-3 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="md:col-span-3 bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
           {/* Header styled like App Identity */}
-          <div className="bg-slate-900 px-6 py-8 text-center border-b border-slate-850">
-            <div className="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center font-bold text-white text-lg mx-auto mb-3 shadow-md">
-              <BookOpen size={20} />
+          <div className="bg-slate-900 px-5 py-5 text-center border-b border-slate-850">
+            <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center font-bold text-white text-base mx-auto mb-2 shadow-sm">
+              <BookOpen size={16} />
             </div>
-            <h3 className="text-white font-bold text-xl tracking-tight uppercase">Conversor Editorial</h3>
-            <p className="text-slate-400 text-xs mt-1">Converta caracteres em laudas em poucos segundos</p>
+            <h3 className="text-white font-bold text-base tracking-tight uppercase">Conversor Editorial</h3>
+            <p className="text-slate-400 text-xs mt-0.5">Converta caracteres em laudas em poucos segundos</p>
           </div>
 
           {/* Form container */}
-          <div className="p-6 space-y-5">
+          <div className="p-5 space-y-4">
             <div>
               <label htmlFor="txtNumero" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                 Número de caracteres

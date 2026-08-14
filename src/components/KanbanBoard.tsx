@@ -1,7 +1,56 @@
-import React, { useState } from 'react';
-import { Plus, CheckCircle, X, Pencil, Trash2, GripVertical } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Plus, CheckCircle, X, Pencil, Trash2, GripVertical, Calendar, Search, RotateCcw, Filter, DollarSign } from 'lucide-react';
 import { Proposal, Status } from '../types';
 import AutocompleteSelect from './AutocompleteSelect';
+
+const MONTH_NAMES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
+
+const parseProposalDate = (dateStr?: string): Date | null => {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const trimmed = dateStr.trim();
+  if (!trimmed) return null;
+
+  // DD/MM/YYYY
+  if (trimmed.includes('/')) {
+    const parts = trimmed.split('/');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+        return new Date(year, month, day);
+      }
+    }
+  }
+
+  // YYYY-MM-DD
+  if (trimmed.includes('-')) {
+    const parts = trimmed.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+        return new Date(year, month, day);
+      }
+    }
+  }
+
+  const d = new Date(trimmed);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const getEffectiveDate = (prop: Proposal): Date | null => {
+  const isApproved = prop.status && prop.status.toLowerCase().includes('aprovad');
+  if (isApproved && prop.approvedDate) {
+    const parsedApproved = parseProposalDate(prop.approvedDate);
+    if (parsedApproved) return parsedApproved;
+  }
+  return parseProposalDate(prop.date);
+};
 
 const formatToISO = (dateStr?: string) => {
   if (!dateStr) {
@@ -53,6 +102,11 @@ export default function KanbanBoard({
   const [newStatusName, setNewStatusName] = useState('');
   const [editingStatusId, setEditingStatusId] = useState<number | null>(null);
   const [editingStatusName, setEditingStatusName] = useState('');
+
+  // Filtering states
+  const [filterMonth, setFilterMonth] = useState<string>('all'); // 'all' | '0'..'11'
+  const [filterYear, setFilterYear] = useState<string>('all'); // 'all' | '2026'..
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Approval Modal States
   const [proposalForApproval, setProposalForApproval] = useState<Proposal | null>(null);
@@ -235,6 +289,72 @@ export default function KanbanBoard({
     showNotification("Coluna excluída.");
   };
 
+  // Filter proposals by month, year and search query
+  const availableYears = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const yearSet = new Set<number>([currentYear]);
+    proposals.forEach(p => {
+      const d = getEffectiveDate(p);
+      if (d) {
+        yearSet.add(d.getFullYear());
+      }
+    });
+    return Array.from(yearSet).sort((a, b) => b - a);
+  }, [proposals]);
+
+  const filteredProposals = useMemo(() => {
+    return proposals.filter(prop => {
+      // 1. Text search
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchName = (prop.name || '').toLowerCase().includes(q);
+        const matchClient = (prop.clientName || '').toLowerCase().includes(q);
+        const matchId = prop.id.toString().includes(q);
+        if (!matchName && !matchClient && !matchId) return false;
+      }
+
+      // 2. Month and Year filter
+      if (filterMonth !== 'all' || filterYear !== 'all') {
+        const d = getEffectiveDate(prop);
+        if (!d) return false;
+
+        if (filterMonth !== 'all') {
+          const targetMonth = parseInt(filterMonth, 10);
+          if (d.getMonth() !== targetMonth) return false;
+        }
+
+        if (filterYear !== 'all') {
+          const targetYear = parseInt(filterYear, 10);
+          if (d.getFullYear() !== targetYear) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [proposals, filterMonth, filterYear, searchQuery]);
+
+  const totalFilteredValue = useMemo(() => {
+    return filteredProposals.reduce((acc, curr) => {
+      const isApproved = curr.status && curr.status.toLowerCase().includes('aprovad');
+      const val = (isApproved && curr.approvedValue !== undefined) ? curr.approvedValue : curr.sellPrice;
+      return acc + val;
+    }, 0);
+  }, [filteredProposals]);
+
+  const isFilterActive = filterMonth !== 'all' || filterYear !== 'all' || searchQuery.trim().length > 0;
+
+  const handleClearFilters = () => {
+    setFilterMonth('all');
+    setFilterYear('all');
+    setSearchQuery('');
+  };
+
+  const handleSetCurrentMonth = () => {
+    const now = new Date();
+    setFilterMonth(now.getMonth().toString());
+    setFilterYear(now.getFullYear().toString());
+  };
+
   const getColumnStyle = (statusName: string) => {
     const name = statusName.toLowerCase();
     if (name.includes('desenvolvimento') || name.includes('novo') || name.includes('iníci')) {
@@ -253,26 +373,122 @@ export default function KanbanBoard({
   };
 
   return (
-    <div className="h-full flex flex-col space-y-6 animate-fade-in">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
-        <div>
-          <h2 className="text-xl font-bold text-slate-800 tracking-tight">Painel de Negócios (Funil)</h2>
-          <p className="text-sm text-slate-500 font-medium">Arraste propostas entre etapas ou reordene as colunas segurando o ícone de arraste.</p>
+    <div className="h-full flex flex-col space-y-3 animate-fade-in">
+      {/* Filter Toolbar */}
+      <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs shrink-0 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 font-sans">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex items-center gap-1.5 text-slate-600 text-xs font-bold uppercase tracking-wider">
+            <Filter size={15} className="text-indigo-600" />
+            <span>Filtro:</span>
+          </div>
+
+          {/* Month Selector */}
+          <div className="relative min-w-[170px]">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400">
+              <Calendar size={14} />
+            </div>
+            <select
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-lg pl-8 pr-7 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white cursor-pointer transition-all appearance-none"
+            >
+              <option value="all">Todos os Meses</option>
+              {MONTH_NAMES.map((mName, idx) => (
+                <option key={idx} value={idx.toString()}>
+                  {mName} ({String(idx + 1).padStart(2, '0')})
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 text-[10px]">
+              ▼
+            </div>
+          </div>
+
+          {/* Year Selector */}
+          <div className="relative min-w-[130px]">
+            <select
+              value={filterYear}
+              onChange={(e) => setFilterYear(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white cursor-pointer transition-all appearance-none"
+            >
+              <option value="all">Todos os Anos</option>
+              {availableYears.map(yr => (
+                <option key={yr} value={yr.toString()}>{yr}</option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 text-[10px]">
+              ▼
+            </div>
+          </div>
+
+          {/* Quick Current Month Button */}
+          <button
+            type="button"
+            onClick={handleSetCurrentMonth}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 transition-colors cursor-pointer whitespace-nowrap"
+          >
+            Mês Atual
+          </button>
+
+          {/* Search Box */}
+          <div className="relative flex-1 min-w-[180px] max-w-xs">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400">
+              <Search size={14} />
+            </div>
+            <input
+              type="text"
+              placeholder="Buscar por proposta/cliente..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all placeholder:text-slate-400"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          {/* Clear Filters button */}
+          {isFilterActive && (
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors cursor-pointer"
+              title="Limpar todos os filtros"
+            >
+              <RotateCcw size={12} />
+              <span>Limpar</span>
+            </button>
+          )}
         </div>
-        <button 
-          onClick={goToNewProposal}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm transition-colors cursor-pointer"
-        >
-          <Plus size={18} />
-          Nova Proposta
-        </button>
+
+        {/* Filter Results Summary */}
+        <div className="flex items-center gap-3 text-xs font-medium text-slate-500 self-end lg:self-center">
+          <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md font-semibold text-[11px]">
+            {filteredProposals.length} {filteredProposals.length === 1 ? 'proposta' : 'propostas'}
+            {isFilterActive && ` de ${proposals.length}`}
+          </span>
+          <span className="text-slate-400">•</span>
+          <span className="font-bold text-slate-800 font-mono text-[12px]">
+            Total: R$ {totalFilteredValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </span>
+        </div>
       </div>
 
       <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
         <div className="flex h-full gap-6 min-w-max">
           {statuses.map((status, index) => {
-            const propsInStatus = proposals.filter(p => p.status === status.name);
-            const totalValueInStatus = propsInStatus.reduce((acc, curr) => acc + curr.sellPrice, 0);
+            const propsInStatus = filteredProposals.filter(p => p.status === status.name);
+            const totalValueInStatus = propsInStatus.reduce((acc, curr) => {
+              const isApproved = curr.status && curr.status.toLowerCase().includes('aprovad');
+              const val = (isApproved && curr.approvedValue !== undefined) ? curr.approvedValue : curr.sellPrice;
+              return acc + val;
+            }, 0);
 
             // Conditional styling for Drag & Drop highlights
             const isHovered = hoveredIndex === index;
@@ -361,7 +577,19 @@ export default function KanbanBoard({
                         onDragEnd={handleDragEnd}
                         className="proposal-card bg-white p-4 rounded-xl shadow-sm border border-slate-200 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow group relative"
                       >
-                        <div className="text-[10px] font-bold text-slate-400 mb-1">#{prop.id.toString().slice(-6)} • {prop.date}</div>
+                        <div className="text-[10px] font-bold text-slate-400 mb-1 flex items-center justify-between pr-6">
+                          <span>#{prop.id.toString().slice(-6)}</span>
+                          <span className="truncate">
+                            {prop.status.toLowerCase().includes('aprovad') && prop.approvedDate
+                              ? `Aprovada: ${prop.approvedDate}`
+                              : prop.date}
+                          </span>
+                        </div>
+                        {prop.clientName && (
+                          <div className="text-[11px] font-semibold text-indigo-600 truncate mb-1">
+                            {prop.clientName}
+                          </div>
+                        )}
                         <button 
                           onClick={(e) => {
                             e.preventDefault();
