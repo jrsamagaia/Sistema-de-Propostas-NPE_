@@ -1,0 +1,8 @@
+{
+  "name": "Sistema de Propostas Comerciais - Editora NPE",
+  "description": "Sistema de gestão de propostas comerciais, orçamentos e fluxo de vendas (Kanban) para a Editora NPE, integrado via n8n.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

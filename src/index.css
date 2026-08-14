@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+@layer utilities {
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+  }
+}
+
+@media print {
+  body {
+    background: #FAF8F5 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  #print-section, #print-section * {
+    visibility: visible !important;
+  }
+  #print-section {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 21cm !important;
+    height: auto !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    background-color: #FAF8F5 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  .print-page {
+    width: 210mm !important;
+    height: 297mm !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    margin: 0 auto !important;
+    padding: 15mm !important;
+    background-color: #FAF8F5 !important;
+    box-sizing: border-box !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    position: relative !important;
+  }
+  .print-page:last-child {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Centering logo header and brand elements for PDF/Print */
+  .print-page .flex-col.items-center {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    width: 100% !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  .print-page img {
+    display: block !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    max-height: 120px !important;
+    width: auto !important;
+    object-fit: contain !important;
+  }
+
+  /* Centering dynamic columns and blocks */
+  .print-page .text-center {
+    text-align: center !important;
+  }
+
+  .print-page .flex-1.flex.flex-col.justify-center {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+  }
+
+  /* Ensure the double border looks perfectly crisp on paper */
+  .print-page .absolute.inset-3 {
+    border: 4px double #94a3b8 !important;
+    border-radius: 1rem !important;
+    inset: 12px !important;
+  }
+
+  /* Limit headings and titles from splitting on print */
+  .print-page h3, .print-page h4 {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    text-align: center !important;
+  }
+
+  /* Centering bento boxes and items */
+  .print-page .max-w-md,
+  .print-page .max-w-lg,
+  .print-page .max-w-sm {
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+}
+
+

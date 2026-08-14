@@ -1,0 +1,382 @@
+{
+  "entities": {
+    "Cost": {
+      "title": "Cost",
+      "description": "Despesas fixas da Editora NPE",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "ID numérico único da despesa"
+        },
+        "description": {
+          "type": "string",
+          "description": "Descrição da despesa fixa"
+        },
+        "value": {
+          "type": "number",
+          "description": "Valor monetário da despesa"
+        }
+      },
+      "required": ["id", "description", "value"]
+    },
+    "Rate": {
+      "title": "Rate",
+      "description": "Taxas e margem de lucro aplicadas sobre as propostas",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "ID numérico único da taxa"
+        },
+        "description": {
+          "type": "string",
+          "description": "Descrição da taxa (ex: Impostos)"
+        },
+        "percentage": {
+          "type": "number",
+          "description": "Percentual da taxa"
+        }
+      },
+      "required": ["id", "description", "percentage"]
+    },
+    "Supply": {
+      "title": "Supply",
+      "description": "Insumos e serviços do catálogo da Editora NPE",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "ID numérico único do insumo"
+        },
+        "description": {
+          "type": "string",
+          "description": "Descrição do insumo ou serviço"
+        },
+        "unit": {
+          "type": "string",
+          "description": "Unidade de medida (ex: lauda, hora, unidade)"
+        },
+        "cost": {
+          "type": "number",
+          "description": "Custo unitário em Reais"
+        },
+        "type": {
+          "type": "string",
+          "description": "Tipo do insumo (produto ou servico)"
+        },
+        "multiplier": {
+          "type": "number",
+          "description": "Fator multiplicador do produto"
+        },
+        "shippingCost": {
+          "type": "number",
+          "description": "Custo do frete para o lote"
+        },
+        "shippingQty": {
+          "type": "integer",
+          "description": "Quantidade de itens no lote de frete"
+        }
+      },
+      "required": ["id", "description", "unit", "cost"]
+    },
+    "Process": {
+      "title": "Process",
+      "description": "Mapeamento dos tempos de processos internos",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "ID numérico único do processo"
+        },
+        "action": {
+          "type": "string",
+          "description": "Nome da ação ou processo mapeado"
+        },
+        "unit": {
+          "type": "string",
+          "description": "Unidade de medida de referência"
+        },
+        "time": {
+          "type": "number",
+          "description": "Tempo em horas, minutos ou laudas"
+        }
+      },
+      "required": ["id", "action", "unit", "time"]
+    },
+    "Status": {
+      "title": "Status",
+      "description": "Etapas do funil (Kanban) de vendas",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "ID numérico único da etapa"
+        },
+        "name": {
+          "type": "string",
+          "description": "Nome da etapa do funil"
+        },
+        "order": {
+          "type": "integer",
+          "description": "Ordem de exibição da coluna"
+        }
+      },
+      "required": ["id", "name", "order"]
+    },
+    "ProposalItem": {
+      "title": "ProposalItem",
+      "description": "Item que compõe um orçamento de proposta",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "supplyId": {
+          "type": "integer"
+        },
+        "description": {
+          "type": "string"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "cost": {
+          "type": "number"
+        },
+        "qty": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string"
+        },
+        "multiplier": {
+          "type": "number"
+        },
+        "baseCost": {
+          "type": "number"
+        },
+        "shippingCost": {
+          "type": "number"
+        },
+        "shippingQty": {
+          "type": "integer"
+        }
+      },
+      "required": ["id", "supplyId", "description", "unit", "cost", "qty"]
+    },
+    "Proposal": {
+      "title": "Proposal",
+      "description": "Proposta comercial contendo os orçamentos e status",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "ID numérico único do orçamento/proposta"
+        },
+        "name": {
+          "type": "string",
+          "description": "Título ou nome do cliente da proposta"
+        },
+        "projectType": {
+          "type": "string",
+          "description": "Tipo do projeto (editorial ou cultural)"
+        },
+        "date": {
+          "type": "string",
+          "description": "Data de criação em formato texto"
+        },
+        "items": {
+          "type": "array",
+          "description": "Lista de itens associados à proposta"
+        },
+        "totalCost": {
+          "type": "number",
+          "description": "Custo total acumulado"
+        },
+        "sellPrice": {
+          "type": "number",
+          "description": "Preço final de venda"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status atual correspondente à etapa do Kanban"
+        },
+        "paymentEntryPercent": {
+          "type": "number",
+          "description": "Percentual de entrada do pagamento"
+        },
+        "paymentInstallments": {
+          "type": "integer",
+          "description": "Número de parcelas do pagamento"
+        },
+        "paymentInterestPercent": {
+          "type": "number",
+          "description": "Percentual de juros aplicado"
+        },
+        "paymentCustomText": {
+          "type": "string",
+          "description": "Texto customizado de condições de pagamento"
+        },
+        "validationDays": {
+          "type": "integer",
+          "description": "Dias de validade da proposta"
+        },
+        "deliveryDays": {
+          "type": "integer",
+          "description": "Dias úteis estimados para a entrega"
+        },
+        "bookFeaturesDescription": {
+          "type": "string",
+          "description": "Características físicas do livro para o orçamento"
+        },
+        "markupMultiplier": {
+          "type": "number",
+          "description": "Fator de markup utilizado"
+        },
+        "leadId": {
+          "type": "integer",
+          "description": "ID do lead associado"
+        },
+        "clientName": {
+          "type": "string",
+          "description": "Cópia do nome do cliente associado"
+        },
+        "clientPhone": {
+          "type": "string",
+          "description": "Cópia do telefone do cliente associado"
+        },
+        "approvedValue": {
+          "type": "number",
+          "description": "Valor aprovado final de fechamento"
+        },
+        "approvedPaymentMethod": {
+          "type": "string",
+          "description": "Forma de pagamento aprovada"
+        },
+        "approvedInstallmentsDetails": {
+          "type": "string",
+          "description": "Detalhes de parcelamento ou entrada aprovados"
+        },
+        "approvedDate": {
+          "type": "string",
+          "description": "Data de aprovação da proposta (DD/MM/AAAA)"
+        },
+        "paymentMethodCash": {
+          "type": "boolean",
+          "description": "Permite pagamento à vista"
+        },
+        "paymentMethodInstallments": {
+          "type": "boolean",
+          "description": "Permite pagamento parcelado"
+        },
+        "paymentDiscountPercent": {
+          "type": "number",
+          "description": "Percentual de desconto à vista"
+        }
+      },
+      "required": ["id", "name", "date", "items", "totalCost", "sellPrice", "status"]
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "Cadastro de leads para contato",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "ID numérico único do lead"
+        },
+        "name": {
+          "type": "string",
+          "description": "Nome completo do lead"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Número do telefone celular com WhatsApp"
+        },
+        "email": {
+          "type": "string",
+          "description": "Endereço de e-mail (opcional)"
+        },
+        "address": {
+          "type": "string",
+          "description": "Endereço de entrega (opcional)"
+        }
+      },
+      "required": ["id", "name", "phone"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "Configurações de integração com APIs externas (WhatsApp e Email)",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID único da configuração (ex: whatsapp ou email)"
+        },
+        "apiUrl": {
+          "type": "string"
+        },
+        "apiKey": {
+          "type": "string"
+        },
+        "instanceName": {
+          "type": "string"
+        },
+        "smtpHost": {
+          "type": "string"
+        },
+        "smtpPort": {
+          "type": "string"
+        },
+        "smtpUser": {
+          "type": "string"
+        },
+        "smtpPass": {
+          "type": "string"
+        },
+        "smtpFrom": {
+          "type": "string"
+        },
+        "smtpSsl": {
+          "type": "boolean"
+        }
+      },
+      "required": ["id"]
+    }
+  },
+  "firestore": {
+    "costs/{costId}": {
+      "schema": { "$ref": "#/entities/Cost" },
+      "description": "Coleção de Custos Fixos"
+    },
+    "rates/{rateId}": {
+      "schema": { "$ref": "#/entities/Rate" },
+      "description": "Coleção de Taxas e Encargos"
+    },
+    "supplies/{supplyId}": {
+      "schema": { "$ref": "#/entities/Supply" },
+      "description": "Coleção de Insumos & Serviços"
+    },
+    "processes/{processId}": {
+      "schema": { "$ref": "#/entities/Process" },
+      "description": "Coleção de Tempos de Processos"
+    },
+    "statuses/{statusId}": {
+      "schema": { "$ref": "#/entities/Status" },
+      "description": "Coleção de Colunas de Status (Kanban)"
+    },
+    "proposals/{proposalId}": {
+      "schema": { "$ref": "#/entities/Proposal" },
+      "description": "Coleção de Propostas Comerciais criadas"
+    },
+    "leads/{leadId}": {
+      "schema": { "$ref": "#/entities/Lead" },
+      "description": "Coleção de Leads para Propostas"
+    },
+    "settings/{settingId}": {
+      "schema": { "$ref": "#/entities/Setting" },
+      "description": "Configurações de integração externas"
+    }
+  }
+}

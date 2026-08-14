@@ -1,0 +1,250 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- REUSABLE HARDENED GLOBAL HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    // --- ENTITY SHAPE VALIDATORS ---
+
+    function isValidCost(data) {
+      return (data.id is int || data.id is float) &&
+             (data.description is string) &&
+             (data.description.size() >= 1 && data.description.size() <= 200) &&
+             (data.value is float || data.value is int) &&
+             (data.value >= 0);
+    }
+
+    function isValidRate(data) {
+      return (data.id is int || data.id is float) &&
+             (data.description is string) &&
+             (data.description.size() >= 1 && data.description.size() <= 200) &&
+             (data.percentage is float || data.percentage is int) &&
+             (data.percentage >= 0 && data.percentage <= 100);
+    }
+
+    function isValidSupply(data) {
+      return (data.id is int || data.id is float) &&
+             (data.description is string) &&
+             (data.description.size() >= 1 && data.description.size() <= 500) &&
+             (data.unit is string) &&
+             (data.unit.size() >= 1 && data.unit.size() <= 50) &&
+             (data.cost is float || data.cost is int) &&
+             (data.cost >= 0) &&
+             (!('type' in data) || data.type is string) &&
+             (!('multiplier' in data) || data.multiplier is float || data.multiplier is int) &&
+             (!('shippingCost' in data) || data.shippingCost is float || data.shippingCost is int) &&
+             (!('shippingQty' in data) || data.shippingQty is int || data.shippingQty is float);
+    }
+
+    function isValidProcess(data) {
+      return (data.id is int || data.id is float) &&
+             (data.action is string) &&
+             (data.action.size() >= 1 && data.action.size() <= 200) &&
+             (data.unit is string) &&
+             (data.unit.size() >= 1 && data.unit.size() <= 50) &&
+             (data.time is float || data.time is int) &&
+             (data.time >= 0);
+    }
+
+    function isValidStatus(data) {
+      return (data.id is int || data.id is float) &&
+             (data.name is string) &&
+             (data.name.size() >= 1 && data.name.size() <= 100) &&
+             (data.order is int || data.order is float) &&
+             (data.order >= 0);
+    }
+
+    function isValidProposal(data) {
+      return (data.id is int || data.id is float) &&
+             (data.name is string) &&
+             (data.name.size() >= 1 && data.name.size() <= 200) &&
+             (data.date is string) &&
+             (data.date.size() >= 1 && data.date.size() <= 100) &&
+             (data.status is string) &&
+             (data.status.size() >= 1 && data.status.size() <= 100) &&
+             (data.totalCost is float || data.totalCost is int) &&
+             (data.totalCost >= 0) &&
+             (data.sellPrice is float || data.sellPrice is int) &&
+             (data.sellPrice >= 0) &&
+             (data.items is list) &&
+             (data.items.size() <= 150) &&
+             (!('projectType' in data) || data.projectType == null || data.projectType is string) &&
+             (!('paymentEntryPercent' in data) || data.paymentEntryPercent == null || data.paymentEntryPercent is float || data.paymentEntryPercent is int) &&
+             (!('paymentInstallments' in data) || data.paymentInstallments == null || data.paymentInstallments is int || data.paymentInstallments is float) &&
+             (!('paymentInterestPercent' in data) || data.paymentInterestPercent == null || data.paymentInterestPercent is float || data.paymentInterestPercent is int) &&
+             (!('paymentCustomText' in data) || data.paymentCustomText == null || data.paymentCustomText is string) &&
+             (!('validationDays' in data) || data.validationDays == null || data.validationDays is int || data.validationDays is float) &&
+             (!('deliveryDays' in data) || data.deliveryDays == null || data.deliveryDays is int || data.deliveryDays is float) &&
+             (!('bookFeaturesDescription' in data) || data.bookFeaturesDescription == null || data.bookFeaturesDescription is string) &&
+             (!('markupMultiplier' in data) || data.markupMultiplier == null || data.markupMultiplier is float || data.markupMultiplier is int) &&
+             (!('leadId' in data) || data.leadId == null || data.leadId is int || data.leadId is float) &&
+             (!('clientName' in data) || data.clientName == null || data.clientName is string) &&
+             (!('clientPhone' in data) || data.clientPhone == null || data.clientPhone is string) &&
+             (!('approvedValue' in data) || data.approvedValue == null || data.approvedValue is float || data.approvedValue is int) &&
+             (!('approvedPaymentMethod' in data) || data.approvedPaymentMethod == null || data.approvedPaymentMethod is string) &&
+             (!('approvedInstallmentsDetails' in data) || data.approvedInstallmentsDetails == null || data.approvedInstallmentsDetails is string) &&
+             (!('approvedDate' in data) || data.approvedDate == null || data.approvedDate is string) &&
+             (!('paymentMethodCash' in data) || data.paymentMethodCash == null || data.paymentMethodCash is bool) &&
+             (!('paymentMethodInstallments' in data) || data.paymentMethodInstallments == null || data.paymentMethodInstallments is bool) &&
+             (!('paymentDiscountPercent' in data) || data.paymentDiscountPercent == null || data.paymentDiscountPercent is float || data.paymentDiscountPercent is int);
+    }
+
+    function isValidLead(data) {
+      return (data.id is int || data.id is float) &&
+             (data.name is string) &&
+             (data.name.size() >= 1 && data.name.size() <= 200) &&
+             (data.phone is string) &&
+             (data.phone.size() >= 1 && data.phone.size() <= 50) &&
+             (!('email' in data) || data.email == null || data.email is string) &&
+             (!('address' in data) || data.address == null || data.address is string);
+    }
+
+    function isValidSetting(data) {
+      return (data.id is string) &&
+             (!('apiUrl' in data) || data.apiUrl == null || data.apiUrl is string) &&
+             (!('apiKey' in data) || data.apiKey == null || data.apiKey is string) &&
+             (!('instanceName' in data) || data.instanceName == null || data.instanceName is string) &&
+             (!('smtpHost' in data) || data.smtpHost == null || data.smtpHost is string) &&
+             (!('smtpPort' in data) || data.smtpPort == null || data.smtpPort is string) &&
+             (!('smtpUser' in data) || data.smtpUser == null || data.smtpUser is string) &&
+             (!('smtpPass' in data) || data.smtpPass == null || data.smtpPass is string) &&
+             (!('smtpFrom' in data) || data.smtpFrom == null || data.smtpFrom is string) &&
+             (!('smtpSsl' in data) || data.smtpSsl == null || data.smtpSsl is bool);
+    }
+
+    // --- COLLECTION ALLOW RULES ---
+
+    match /costs/{costId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+                      isValidId(costId) &&
+                      incoming().keys().hasAll(['id', 'description', 'value']) &&
+                      incoming().keys().size() == 3 &&
+                      isValidCost(incoming());
+      allow update: if isSignedIn() &&
+                      isValidId(costId) &&
+                      incoming().keys().hasAll(['id', 'description', 'value']) &&
+                      incoming().keys().size() == 3 &&
+                      isValidCost(incoming());
+      allow delete: if isSignedIn();
+    }
+
+    match /rates/{rateId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+                      isValidId(rateId) &&
+                      incoming().keys().hasAll(['id', 'description', 'percentage']) &&
+                      incoming().keys().size() == 3 &&
+                      isValidRate(incoming());
+      allow update: if isSignedIn() &&
+                      isValidId(rateId) &&
+                      incoming().keys().hasAll(['id', 'description', 'percentage']) &&
+                      incoming().keys().size() == 3 &&
+                      isValidRate(incoming());
+      allow delete: if isSignedIn();
+    }
+
+    match /supplies/{supplyId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+                      isValidId(supplyId) &&
+                      incoming().keys().hasAll(['id', 'description', 'unit', 'cost']) &&
+                      incoming().keys().size() >= 4 && incoming().keys().size() <= 8 &&
+                      isValidSupply(incoming());
+      allow update: if isSignedIn() &&
+                      isValidId(supplyId) &&
+                      incoming().keys().hasAll(['id', 'description', 'unit', 'cost']) &&
+                      incoming().keys().size() >= 4 && incoming().keys().size() <= 8 &&
+                      isValidSupply(incoming());
+      allow delete: if isSignedIn();
+    }
+
+    match /processes/{processId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+                      isValidId(processId) &&
+                      incoming().keys().hasAll(['id', 'action', 'unit', 'time']) &&
+                      incoming().keys().size() == 4 &&
+                      isValidProcess(incoming());
+      allow update: if isSignedIn() &&
+                      isValidId(processId) &&
+                      incoming().keys().hasAll(['id', 'action', 'unit', 'time']) &&
+                      incoming().keys().size() == 4 &&
+                      isValidProcess(incoming());
+      allow delete: if isSignedIn();
+    }
+
+    match /statuses/{statusId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+                      isValidId(statusId) &&
+                      incoming().keys().hasAll(['id', 'name', 'order']) &&
+                      incoming().keys().size() == 3 &&
+                      isValidStatus(incoming());
+      allow update: if isSignedIn() &&
+                      isValidId(statusId) &&
+                      incoming().keys().hasAll(['id', 'name', 'order']) &&
+                      incoming().keys().size() == 3 &&
+                      isValidStatus(incoming());
+      allow delete: if isSignedIn();
+    }
+
+    match /proposals/{proposalId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+                      isValidId(proposalId) &&
+                      incoming().keys().hasAll(['id', 'name', 'date', 'items', 'totalCost', 'sellPrice', 'status']) &&
+                      incoming().keys().size() >= 7 && incoming().keys().size() <= 35 &&
+                      isValidProposal(incoming());
+      allow update: if isSignedIn() &&
+                      isValidId(proposalId) &&
+                      incoming().keys().hasAll(['id', 'name', 'date', 'items', 'totalCost', 'sellPrice', 'status']) &&
+                      incoming().keys().size() >= 7 && incoming().keys().size() <= 35 &&
+                      isValidProposal(incoming());
+      allow delete: if isSignedIn();
+    }
+
+    match /leads/{leadId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+                      isValidId(leadId) &&
+                      incoming().keys().hasAll(['id', 'name', 'phone']) &&
+                      incoming().keys().size() >= 3 && incoming().keys().size() <= 5 &&
+                      isValidLead(incoming());
+      allow update: if isSignedIn() &&
+                      isValidId(leadId) &&
+                      incoming().keys().hasAll(['id', 'name', 'phone']) &&
+                      incoming().keys().size() >= 3 && incoming().keys().size() <= 5 &&
+                      isValidLead(incoming());
+      allow delete: if isSignedIn();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() &&
+                              isValidSetting(incoming());
+      allow delete: if isSignedIn();
+    }
+
+  }
+}
