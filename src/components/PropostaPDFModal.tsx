@@ -870,6 +870,96 @@ export default function PropostaPDFModal({
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
+  const renderPixBoletoTerms = (totalAmount: number, directTerms?: string, entryPct: number = 50) => {
+    const terms = (directTerms || '').trim();
+
+    // Case 1: If terms match "Entrada (X%) + Na entrega (Y%)" or similar variation with %
+    const regexEntradaEntrega = /Entrada\s*\(?(\d+)%?\)?\s*\+\s*(?:Na\s+)?entrega\s*\(?(\d+)%?\)?/i;
+    const matchEntradaEntrega = terms.match(regexEntradaEntrega);
+
+    if (matchEntradaEntrega) {
+      const p1 = parseInt(matchEntradaEntrega[1], 10);
+      const p2 = parseInt(matchEntradaEntrega[2], 10);
+      const v1 = totalAmount * (p1 / 100);
+      const v2 = totalAmount * (p2 / 100);
+      return (
+        <span>
+          Entrada ({p1}%) <strong className="text-slate-950 font-bold">{formatCurrency(v1)}</strong> + Na entrega ({p2}%) <strong className="text-slate-950 font-bold">{formatCurrency(v2)}</strong>
+        </span>
+      );
+    }
+
+    // Case 2: If terms match "Entrada + Na entrega" without explicit % in string
+    const regexSimpleEntradaEntrega = /Entrada\s*\+\s*(?:Na\s+)?entrega/i;
+    if (regexSimpleEntradaEntrega.test(terms)) {
+      const p1 = entryPct > 0 && entryPct < 100 ? entryPct : 50;
+      const p2 = 100 - p1;
+      const v1 = totalAmount * (p1 / 100);
+      const v2 = totalAmount * (p2 / 100);
+      return (
+        <span>
+          Entrada ({p1}%) <strong className="text-slate-950 font-bold">{formatCurrency(v1)}</strong> + Na entrega ({p2}%) <strong className="text-slate-950 font-bold">{formatCurrency(v2)}</strong>
+        </span>
+      );
+    }
+
+    // Case 3: If terms specify installment schedules like "Entrada, 30 e 60 dias"
+    if (terms) {
+      if (/entrada,\s*30\s*e\s*60\s*dias/i.test(terms)) {
+        const vParc = totalAmount / 3;
+        return (
+          <span>
+            {terms} (3x de <strong className="text-slate-950 font-bold">{formatCurrency(vParc)}</strong>)
+          </span>
+        );
+      }
+      if (/entrada,\s*30,\s*60\s*e\s*90\s*dias/i.test(terms)) {
+        const vParc = totalAmount / 4;
+        return (
+          <span>
+            {terms} (4x de <strong className="text-slate-950 font-bold">{formatCurrency(vParc)}</strong>)
+          </span>
+        );
+      }
+      if (/30,\s*60\s*e\s*90\s*dias/i.test(terms)) {
+        const vParc = totalAmount / 3;
+        return (
+          <span>
+            {terms} (3x de <strong className="text-slate-950 font-bold">{formatCurrency(vParc)}</strong>)
+          </span>
+        );
+      }
+
+      if (entryPct > 0 && entryPct < 100) {
+        const vEnt = totalAmount * (entryPct / 100);
+        const vRest = totalAmount * ((100 - entryPct) / 100);
+        return (
+          <span>
+            <strong className="text-slate-950 font-bold">{terms}</strong>
+            <span className="text-slate-600 font-medium"> ({entryPct}% Entrada: <strong className="text-slate-950 font-bold">{formatCurrency(vEnt)}</strong> + saldo: <strong className="text-slate-950 font-bold">{formatCurrency(vRest)}</strong>)</span>
+          </span>
+        );
+      }
+
+      return <span className="text-slate-950 font-bold">{terms}</span>;
+    }
+
+    // Case 4: Default fallback when terms is empty
+    if (entryPct === 100) {
+      return <strong className="text-slate-950 font-bold">{formatCurrency(totalAmount)}</strong>;
+    }
+
+    const p1 = entryPct > 0 && entryPct < 100 ? entryPct : 50;
+    const p2 = 100 - p1;
+    const v1 = totalAmount * (p1 / 100);
+    const v2 = totalAmount * (p2 / 100);
+    return (
+      <span>
+        Entrada ({p1}%) <strong className="text-slate-950 font-bold">{formatCurrency(v1)}</strong> + Na entrega ({p2}%) <strong className="text-slate-950 font-bold">{formatCurrency(v2)}</strong>
+      </span>
+    );
+  };
+
   return (
     <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto sm:p-6" id="print-modal-wrapper">
       
@@ -1297,29 +1387,9 @@ export default function PropostaPDFModal({
                                       <div className="border-b border-slate-100 pb-1.5">
                                         <p className="font-semibold text-indigo-950 text-[10px] mb-0.5">Opção A: PIX / Boleto Facilitado</p>
                                         <ul className="list-disc pl-4 space-y-0.5 text-slate-700 font-semibold text-[11px]">
-                                          {paymentDirectTerms ? (
-                                            <li>
-                                              Condição de Prazos: <span className="text-slate-900 font-bold">{paymentDirectTerms}</span>
-                                              {entryPercent > 0 && entryPercent < 100 && (
-                                                <span className="block text-[10px] text-slate-500 font-medium mt-0.5">
-                                                  ({entryPercent}% de Entrada: {formatCurrency(sEntrada)} + saldo conforme prazos)
-                                                </span>
-                                              )}
-                                            </li>
-                                          ) : entryPercent === 100 ? (
-                                            <li>
-                                              PIX/Boleto: <span className="text-slate-900 font-bold">{formatCurrency(sEntrada)}</span>
-                                            </li>
-                                          ) : (
-                                            <>
-                                              <li>
-                                                {entryPercent}% Entrada: <span className="text-slate-900 font-bold">{formatCurrency(sEntrada)}</span>
-                                              </li>
-                                              <li>
-                                                {100 - entryPercent}% na entrega do livro finalizado: <span className="text-slate-900 font-bold">{formatCurrency(sEntrega)}</span>
-                                              </li>
-                                            </>
-                                          )}
+                                          <li>
+                                            {renderPixBoletoTerms(servicesSellPrice, paymentDirectTerms, entryPercent)}
+                                          </li>
                                         </ul>
                                       </div>
                                       
@@ -1559,16 +1629,7 @@ export default function PropostaPDFModal({
                                     <div className="space-y-1 text-[10px] leading-tight">
                                       <div>
                                         <span className="font-bold text-slate-800">PIX/Boleto: </span> 
-                                        {paymentDirectTerms ? (
-                                          <span className="text-slate-900 font-bold">{paymentDirectTerms}</span>
-                                        ) : entryPercent === 100 ? (
-                                          <span className="text-slate-900 font-bold">{formatCurrency(optEntrada)}</span>
-                                        ) : (
-                                          <>
-                                            {entryPercent}% Entrada (<span className="text-slate-900 font-bold">{formatCurrency(optEntrada)}</span>) + 
-                                            {100 - entryPercent}% entrega (<span className="text-slate-900 font-bold">{formatCurrency(optEntrega)}</span>)
-                                          </>
-                                        )}
+                                        {renderPixBoletoTerms(opt.sellPrice, paymentDirectTerms, entryPercent)}
                                       </div>
                                       <div>
                                         <span className="font-bold text-slate-800">Cartão: </span> 
