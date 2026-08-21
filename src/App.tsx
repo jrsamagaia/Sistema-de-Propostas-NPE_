@@ -179,8 +179,14 @@ export default function App() {
       try {
         const querySnapshot = await getDocs(collection(db, collectionName));
         let data: any[] = [];
+        const seenIds = new Set<string>();
         querySnapshot.forEach((docSnap) => {
-          data.push(docSnap.data());
+          const docData = docSnap.data();
+          const idKey = String(docData.id || docSnap.id);
+          if (!seenIds.has(idKey)) {
+            seenIds.add(idKey);
+            data.push(docData);
+          }
         });
         
         if (data.length === 0 && initialData) {
@@ -205,7 +211,7 @@ export default function App() {
           Promise.all([
             loadFromFirestore('costs', setFixedCosts as React.Dispatch<React.SetStateAction<any[]>>, initialFixedCosts, (a, b) => a.id - b.id),
             loadFromFirestore('rates', setRates as React.Dispatch<React.SetStateAction<any[]>>, initialRates, (a, b) => a.id - b.id),
-            loadFromFirestore('supplies', setSupplies as React.Dispatch<React.SetStateAction<any[]>>, initialSupplies, (a, b) => a.id - b.id),
+            loadFromFirestore('supplies', setSupplies as React.Dispatch<React.SetStateAction<any[]>>, initialSupplies, (a, b) => (b.createdAt || b.id) - (a.createdAt || a.id)),
             loadFromFirestore('processes', setProcesses as React.Dispatch<React.SetStateAction<any[]>>, initialProcesses, (a, b) => a.id - b.id),
             loadFromFirestore('statuses', setStatuses as React.Dispatch<React.SetStateAction<any[]>>, initialStatuses, (a, b) => (a.order || a.id) - (b.order || b.id)),
             loadFromFirestore('proposals', setProposals as React.Dispatch<React.SetStateAction<any[]>>, null, (a, b) => b.id - a.id),
@@ -245,15 +251,25 @@ export default function App() {
   const saveToDb = async (collectionName: string, item: any) => {
     const updateState = (setState: React.Dispatch<React.SetStateAction<any[]>>, sortFn?: (a: any, b: any) => number) => {
       setState(prev => {
-        const exists = prev.find(p => p.id === item.id);
-        const newState = exists ? prev.map(p => p.id === item.id ? item : p) : [...prev, item];
-        return sortFn ? newState.sort(sortFn) : newState;
+        const itemStrId = String(item.id);
+        const exists = prev.some(p => String(p.id) === itemStrId);
+        const newState = exists 
+          ? prev.map(p => String(p.id) === itemStrId ? item : p) 
+          : [...prev, item];
+        const seen = new Set<string>();
+        const unique = newState.filter(p => {
+          const k = String(p.id);
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
+        return sortFn ? unique.sort(sortFn) : unique;
       });
     };
 
     if (collectionName === 'costs') updateState(setFixedCosts as React.Dispatch<React.SetStateAction<any[]>>, (a, b) => a.id - b.id);
     if (collectionName === 'rates') updateState(setRates as React.Dispatch<React.SetStateAction<any[]>>, (a, b) => a.id - b.id);
-    if (collectionName === 'supplies') updateState(setSupplies as React.Dispatch<React.SetStateAction<any[]>>, (a, b) => a.id - b.id);
+    if (collectionName === 'supplies') updateState(setSupplies as React.Dispatch<React.SetStateAction<any[]>>, (a, b) => (b.createdAt || b.id) - (a.createdAt || a.id));
     if (collectionName === 'processes') updateState(setProcesses as React.Dispatch<React.SetStateAction<any[]>>, (a, b) => a.id - b.id);
     if (collectionName === 'statuses') updateState(setStatuses as React.Dispatch<React.SetStateAction<any[]>>, (a, b) => (a.order || a.id) - (b.order || b.id));
     if (collectionName === 'proposals') updateState(setProposals as React.Dispatch<React.SetStateAction<any[]>>, (a, b) => b.id - a.id);
@@ -271,7 +287,8 @@ export default function App() {
 
   const removeFromDb = async (collectionName: string, id: number | string) => {
     const removeState = (setState: React.Dispatch<React.SetStateAction<any[]>>) => {
-      setState(prev => prev.filter(p => p.id !== id));
+      const idStr = String(id);
+      setState(prev => prev.filter(p => String(p.id) !== idStr));
     };
 
     if (collectionName === 'costs') removeState(setFixedCosts as React.Dispatch<React.SetStateAction<any[]>>);

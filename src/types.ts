@@ -10,6 +10,16 @@ export interface Rate {
   percentage: number;
 }
 
+export interface SupplyVariation {
+  id: string;
+  quantity: number;
+  unit?: string;
+  cost: number; // Custo base unitário
+  multiplier?: number; // Fator multiplicador
+  shippingCost?: number; // Frete total (opcional)
+  shippingQty?: number; // Quantidade de frete (opcional)
+}
+
 export interface Supply {
   id: number;
   description: string;
@@ -19,6 +29,10 @@ export interface Supply {
   multiplier?: number;
   shippingCost?: number;
   shippingQty?: number;
+  hasVariations?: boolean;
+  variations?: SupplyVariation[];
+  createdAt?: number;
+  active?: boolean;
 }
 
 export interface Process {

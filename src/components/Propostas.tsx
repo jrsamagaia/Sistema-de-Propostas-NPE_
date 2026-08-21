@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Pencil, Trash2, Plus, Save, Settings, X, FileText, Printer, Clock, Send, Loader2, Search, Calendar, Filter, ChevronDown } from 'lucide-react';
-import { Proposal, Supply, Rate, Status, ProposalItem, Lead, IntegrationSetting, CardInstallmentOption, getInstallmentScheduleText } from '../types';
+import { Pencil, Trash2, Plus, Save, Settings, X, FileText, Printer, Clock, Send, Loader2, Search, Calendar, Filter, ChevronDown, Layers } from 'lucide-react';
+import { Proposal, Supply, Rate, Status, ProposalItem, Lead, IntegrationSetting, CardInstallmentOption, getInstallmentScheduleText, SupplyVariation } from '../types';
 import PropostaPDFModal from './PropostaPDFModal';
 import AutocompleteSelect from './AutocompleteSelect';
 
@@ -240,20 +240,28 @@ export default function Propostas({
   const [quantity, setQuantity] = useState<number | string>(1);
   const [itemFreight, setItemFreight] = useState<number | string>('');
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [selectedVariationIds, setSelectedVariationIds] = useState<string[]>([]);
 
   const handleSupplyChange = (supplyIdStr: string) => {
     setSelectedSupplyId(supplyIdStr);
     if (!supplyIdStr) {
       setItemFreight('');
       setSupplySearchQuery('');
+      setSelectedVariationIds([]);
       return;
     }
     const supply = supplies.find(s => s.id === parseInt(supplyIdStr));
     if (supply) {
       setSupplySearchQuery(supply.description);
       setItemFreight('');
+      if (supply.hasVariations && supply.variations && supply.variations.length > 0) {
+        setSelectedVariationIds(supply.variations.map(v => v.id));
+      } else {
+        setSelectedVariationIds([]);
+      }
     } else {
       setItemFreight('');
+      setSelectedVariationIds([]);
     }
   };
 
@@ -415,6 +423,69 @@ export default function Propostas({
     setIsSupplySearchOpen(false);
     setQuantity(1);
     setItemFreight('');
+    setSelectedVariationIds([]);
+  };
+
+  const handleAddSelectedVariations = () => {
+    if (!selectedSupplyId) return;
+    const supply = supplies.find(s => s.id === parseInt(selectedSupplyId));
+    if (!supply || !supply.variations || supply.variations.length === 0) return;
+
+    const varsToAdd = supply.variations.filter(v => selectedVariationIds.includes(v.id));
+    if (varsToAdd.length === 0) {
+      showNotification('Selecione ao menos uma variação para incluir.');
+      return;
+    }
+
+    const newItems: ProposalItem[] = varsToAdd.map((v, idx) => {
+      const vMult = v.multiplier !== undefined ? v.multiplier : (supply.multiplier || 1.0);
+      const vUnit = v.unit || supply.unit || 'unidade';
+      const vUnitCostCalc = v.cost * vMult;
+
+      return {
+        id: Date.now() + idx + Math.floor(Math.random() * 1000),
+        supplyId: supply.id,
+        description: `${supply.description} (${v.quantity} ${vUnit}s)`,
+        unit: vUnit,
+        cost: vUnitCostCalc,
+        qty: v.quantity,
+        type: 'produto',
+        multiplier: vMult,
+        baseCost: v.cost,
+        shippingCost: undefined,
+        shippingQty: undefined
+      };
+    });
+
+    setItems(prev => [...prev, ...newItems]);
+    showNotification(`${newItems.length} variação(ões) de "${supply.description}" incluída(s) na proposta!`);
+    handleSupplyChange('');
+    setSupplySearchQuery('');
+    setIsSupplySearchOpen(false);
+    setSelectedVariationIds([]);
+  };
+
+  const handleAddSingleVariation = (v: SupplyVariation, supply: Supply) => {
+    const vMult = v.multiplier !== undefined ? v.multiplier : (supply.multiplier || 1.0);
+    const vUnit = v.unit || supply.unit || 'unidade';
+    const vUnitCostCalc = v.cost * vMult;
+
+    const newItem: ProposalItem = {
+      id: Date.now() + Math.floor(Math.random() * 1000),
+      supplyId: supply.id,
+      description: `${supply.description} (${v.quantity} ${vUnit}s)`,
+      unit: vUnit,
+      cost: vUnitCostCalc,
+      qty: v.quantity,
+      type: 'produto',
+      multiplier: vMult,
+      baseCost: v.cost,
+      shippingCost: undefined,
+      shippingQty: undefined
+    };
+
+    setItems(prev => [...prev, newItem]);
+    showNotification(`Variação de ${v.quantity} ${vUnit}s incluída na proposta!`);
   };
 
   const handleEditItem = (item: ProposalItem) => {
@@ -824,6 +895,7 @@ export default function Propostas({
               const isPrintService = selectedSupplyObj ? selectedSupplyObj.type === 'produto' : (editingItemId ? items.find(i => i.id === editingItemId)?.type === 'produto' : false);
               
               const filteredSupplies = supplies.filter(s => {
+                if (s.active === false) return false;
                 if (supplyTypeFilter === 'servico' && s.type !== 'servico') return false;
                 if (supplyTypeFilter === 'produto' && s.type !== 'produto') return false;
                 
@@ -837,6 +909,7 @@ export default function Propostas({
               });
 
               return (
+                <>
                 <div className="flex gap-4 items-end bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6 flex-wrap md:flex-nowrap">
                   {/* CAMPO DE SELEÇÃO COM AUTOCOMPLETE E FILTRO RADIO */}
                   <div className="flex-1 w-full md:w-auto relative" ref={supplyDropdownRef}>
@@ -926,7 +999,7 @@ export default function Propostas({
 
                       {/* Dropdown de opções filtradas */}
                       {isSupplySearchOpen && (
-                        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-64 overflow-y-auto divide-y divide-slate-100">
+                        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-72 overflow-y-auto divide-y divide-slate-100">
                           {filteredSupplies.length === 0 ? (
                             <div className="p-3 text-xs text-slate-500 text-center italic">
                               Nenhum insumo ou serviço encontrado.
@@ -935,6 +1008,7 @@ export default function Propostas({
                             filteredSupplies.map(s => {
                               const isProduct = s.type === 'produto';
                               const mult = isProduct ? (s.multiplier || 1.0) : 1.0;
+                              const hasVars = isProduct && s.hasVariations && s.variations && s.variations.length > 0;
                               const catalogShippingCost = isProduct && s.shippingCost !== undefined ? s.shippingCost : 0;
                               const catalogShippingQty = isProduct && s.shippingQty !== undefined ? s.shippingQty : 0;
                               const catalogFreightPerUnit = catalogShippingQty > 0 ? (catalogShippingCost / catalogShippingQty) : 0;
@@ -949,12 +1023,12 @@ export default function Propostas({
                                     setSupplySearchQuery(s.description);
                                     setIsSupplySearchOpen(false);
                                   }}
-                                  className={`p-2.5 hover:bg-amber-50 cursor-pointer transition-colors flex items-center justify-between gap-3 ${
+                                  className={`p-3 hover:bg-amber-50 cursor-pointer transition-colors flex items-center justify-between gap-3 ${
                                     isSelected ? 'bg-amber-50/90 font-semibold' : ''
                                   }`}
                                 >
                                   <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
                                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
                                         isProduct 
                                           ? 'bg-fuchsia-100 text-fuchsia-800 border border-fuchsia-200' 
@@ -962,18 +1036,34 @@ export default function Propostas({
                                       }`}>
                                         {isProduct ? 'Impressão' : 'Serviço'}
                                       </span>
-                                      <span className="text-xs text-slate-800 truncate font-medium">
+                                      <span className="text-xs text-slate-800 font-bold truncate">
                                         {s.description}
                                       </span>
+                                      {hasVars && (
+                                        <span className="text-[10px] font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200 flex items-center gap-1">
+                                          <Layers size={10} /> {s.variations!.length} Variações de Qtd
+                                        </span>
+                                      )}
                                     </div>
+                                    {hasVars && (
+                                      <div className="text-[11px] text-indigo-700/80 mt-1 truncate">
+                                        Opções: {s.variations!.map(v => `${v.quantity} un (R$ ${(v.cost * (v.multiplier || mult)).toFixed(2)}/un)`).join(' • ')}
+                                      </div>
+                                    )}
                                   </div>
 
                                   <div className="text-right shrink-0">
                                     <div className="text-xs font-bold text-slate-900">
-                                      R$ {effectiveCost.toFixed(2)}
+                                      {hasVars ? (
+                                        <span className="text-indigo-700">
+                                          A partir de R$ {(Math.min(...s.variations!.map(v => v.cost * (v.multiplier || mult)))).toFixed(2)}
+                                        </span>
+                                      ) : (
+                                        `R$ ${effectiveCost.toFixed(2)}`
+                                      )}
                                       <span className="text-[10px] text-slate-500 font-normal">/{s.unit}</span>
                                     </div>
-                                    {isProduct && mult !== 1.0 && (
+                                    {isProduct && mult !== 1.0 && !hasVars && (
                                       <span className="text-[9px] text-slate-400 block">
                                         Base: R$ {s.cost.toFixed(2)} (Fator {mult.toFixed(2)}x)
                                       </span>
@@ -988,13 +1078,13 @@ export default function Propostas({
                     </div>
                   </div>
 
-                  {/* CAMPO VALOR FRETE (R$) QUANDO FOR SERVIÇO DE IMPRESSÃO */}
-                  {isPrintService && (
+                  {/* CAMPO VALOR FRETE (R$) QUANDO FOR SERVIÇO DE IMPRESSÃO SEM VARIAÇÕES */}
+                  {isPrintService && (!selectedSupplyObj?.hasVariations || !selectedSupplyObj?.variations || selectedSupplyObj.variations.length === 0) && (
                     <div className="w-full md:w-36">
                       <label className="block text-xs font-semibold text-slate-600 mb-1">Valor Frete (R$)</label>
                       <input 
                         type="number" 
-                        step="0.01"
+                        step="0.01" 
                         min="0"
                         placeholder="0.00"
                         className="w-full border border-slate-300 bg-white rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 font-sans"
@@ -1004,34 +1094,150 @@ export default function Propostas({
                     </div>
                   )}
 
-                  <div className="w-full md:w-32">
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Quantidade</label>
-                    <input 
-                      type="number" 
-                      step="0.1"
-                      className="w-full border border-slate-300 bg-white rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
-                      value={quantity}
-                      onChange={(e) => setQuantity(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-0">
-                    <button 
-                      onClick={handleAddItem}
-                      className={`w-full md:w-auto text-white px-4 py-2 rounded font-medium transition-colors cursor-pointer ${editingItemId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-900 hover:bg-slate-800'}`}
-                    >
-                      {editingItemId ? 'Atualizar' : 'Incluir'}
-                    </button>
-                    {editingItemId && (
-                      <button 
-                        onClick={handleCancelEditItem}
-                        className="bg-gray-200 text-gray-600 px-3 py-2 rounded hover:bg-gray-300 transition-colors cursor-pointer"
-                        title="Cancelar Edição"
-                      >
-                        <X size={18} />
-                      </button>
-                    )}
-                  </div>
+                  {/* QUANTIDADE E BOTÃO INCLUIR QUANDO NÃO FOR PRODUTO COM VARIAÇÕES */}
+                  {(!selectedSupplyObj?.hasVariations || !selectedSupplyObj?.variations || selectedSupplyObj.variations.length === 0) && (
+                    <>
+                      <div className="w-full md:w-32">
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Quantidade</label>
+                        <input 
+                          type="number" 
+                          step="0.1" 
+                          className="w-full border border-slate-300 bg-white rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                          value={quantity}
+                          onChange={(e) => setQuantity(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-0">
+                        <button 
+                          onClick={handleAddItem}
+                          className={`w-full md:w-auto text-white px-4 py-2 rounded font-medium transition-colors cursor-pointer ${editingItemId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-900 hover:bg-slate-800'}`}
+                        >
+                          {editingItemId ? 'Atualizar' : 'Incluir'}
+                        </button>
+                        {editingItemId && (
+                          <button 
+                            onClick={handleCancelEditItem}
+                            className="bg-gray-200 text-gray-600 px-3 py-2 rounded hover:bg-gray-300 transition-colors cursor-pointer"
+                            title="Cancelar Edição"
+                          >
+                            <X size={18} />
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
+
+                {/* PAINEL DE SELEÇÃO DE VARIAÇÕES DE QUANTIDADE */}
+                {selectedSupplyObj && selectedSupplyObj.hasVariations && selectedSupplyObj.variations && selectedSupplyObj.variations.length > 0 && (
+                  <div className="bg-indigo-50/80 p-4 rounded-xl border border-indigo-200 mb-6 space-y-3 shadow-xs animate-fade-in">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-200 pb-2.5">
+                      <div>
+                        <h4 className="text-xs font-bold text-indigo-950 uppercase tracking-wide flex items-center gap-1.5">
+                          <Layers size={15} className="text-indigo-600" />
+                          Opções de Variação de Quantidade / Tiragens ({selectedSupplyObj.description})
+                        </h4>
+                        <p className="text-[11px] text-indigo-700 font-medium">
+                          Selecione as opções de tiragens desejadas para serem incluídas em linhas individuais da proposta.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedVariationIds.length === selectedSupplyObj.variations!.length) {
+                              setSelectedVariationIds([]);
+                            } else {
+                              setSelectedVariationIds(selectedSupplyObj.variations!.map(v => v.id));
+                            }
+                          }}
+                          className="text-xs bg-white hover:bg-indigo-100/60 text-indigo-800 border border-indigo-200 px-2.5 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer"
+                        >
+                          {selectedVariationIds.length === selectedSupplyObj.variations!.length ? 'Desmarcar Todas' : 'Selecionar Todas'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleAddSelectedVariations}
+                          disabled={selectedVariationIds.length === 0}
+                          className="text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                        >
+                          <Plus size={14} /> Incluir Variações Selecionadas ({selectedVariationIds.length})
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                      {selectedSupplyObj.variations.map((v, vIdx) => {
+                        const vMult = v.multiplier !== undefined ? v.multiplier : (selectedSupplyObj.multiplier || 1.0);
+                        const vUnit = v.unit || selectedSupplyObj.unit || 'unidade';
+                        const vUnitCost = v.cost * vMult;
+                        const vTotal = vUnitCost * (v.quantity || 1);
+                        const isChecked = selectedVariationIds.includes(v.id);
+
+                        return (
+                          <div
+                            key={v.id || vIdx}
+                            onClick={() => {
+                              setSelectedVariationIds(prev => 
+                                prev.includes(v.id) ? prev.filter(id => id !== v.id) : [...prev, v.id]
+                              );
+                            }}
+                            className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                              isChecked 
+                                ? 'bg-white border-indigo-500 shadow-xs ring-2 ring-indigo-500/20' 
+                                : 'bg-white/80 border-indigo-100 hover:bg-white hover:border-indigo-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {}}
+                                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer pointer-events-none"
+                              />
+                              <div>
+                                <div className="font-bold text-xs text-slate-900">
+                                  {vIdx + 1}- {selectedSupplyObj.description} ({v.quantity} {vUnit}s)
+                                </div>
+                                <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
+                                  <span>Custo Base: R$ {v.cost.toFixed(2)}</span>
+                                  <span>•</span>
+                                  <span>Fator: {vMult.toFixed(2)}x</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0 flex items-center gap-2.5">
+                              <div>
+                                <div className="text-xs font-bold text-indigo-950 font-mono">
+                                  R$ {vUnitCost.toFixed(2)} <span className="text-[10px] font-normal text-slate-400">/{vUnit}</span>
+                                </div>
+                                <div className="text-[10px] font-bold text-emerald-600 font-mono">
+                                  Total: R$ {vTotal.toFixed(2)}
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAddSingleVariation(v, selectedSupplyObj);
+                                }}
+                                className="text-[11px] bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 border border-indigo-200 px-2 py-1 rounded font-bold transition-colors cursor-pointer"
+                                title="Incluir apenas esta linha"
+                              >
+                                + Incluir
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                </>
               );
             })()}
 
@@ -1053,8 +1259,8 @@ export default function Propostas({
                       <td colSpan={6} className="py-8 text-center text-slate-400 border-b border-gray-100">Nenhum item adicionado à proposta ainda.</td>
                     </tr>
                   ) : (
-                    items.map(item => (
-                      <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                    items.map((item, itemIdx) => (
+                      <tr key={`${item.id}_${itemIdx}`} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                         <td className="py-3 px-2 font-medium text-slate-800 text-left">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span>{item.description}</span>
@@ -1897,8 +2103,8 @@ export default function Propostas({
                 </div>
                 
                 <div className="flex flex-col gap-4">
-                  {group.proposals.map(prop => (
-                    <div key={prop.id} className="bg-white rounded-xl shadow-sm border border-slate-100 hover:border-slate-200 hover:shadow-md transition-all flex flex-col md:flex-row overflow-hidden min-h-[140px]">
+                  {group.proposals.map((prop, pIdx) => (
+                    <div key={`${prop.id}_${pIdx}`} className="bg-white rounded-xl shadow-sm border border-slate-100 hover:border-slate-200 hover:shadow-md transition-all flex flex-col md:flex-row overflow-hidden min-h-[140px]">
                       {/* Left Part: White Background (Name, Client, Date & Status, Payment info) */}
                       <div className="p-5 flex-1 flex flex-col justify-between bg-white space-y-3">
                         <div className="space-y-2">

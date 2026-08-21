@@ -76,6 +76,22 @@
         "shippingQty": {
           "type": "integer",
           "description": "Quantidade de itens no lote de frete"
+        },
+        "hasVariations": {
+          "type": "boolean",
+          "description": "Indica se o produto possui variações por tiragem/quantidade"
+        },
+        "variations": {
+          "type": "array",
+          "description": "Lista de variações por tiragem/quantidade com custos e fatores"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Timestamp de criação do insumo"
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Status ativo/inativo do insumo"
         }
       },
       "required": ["id", "description", "unit", "cost"]
@@ -221,6 +237,10 @@
         "validationDays": {
           "type": "integer",
           "description": "Dias de validade da proposta"
+        },
+        "validityDate": {
+          "type": "string",
+          "description": "Data limite de validade calculada (DD/MM/AAAA)"
         },
         "deliveryDays": {
           "type": "integer",

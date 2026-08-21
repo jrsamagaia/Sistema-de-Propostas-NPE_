@@ -598,9 +598,9 @@ export default function KanbanBoard({
                       Sem propostas nesta etapa
                     </div>
                   ) : (
-                    propsInStatus.map(prop => (
+                    propsInStatus.map((prop, pIdx) => (
                       <div 
-                        key={prop.id}
+                        key={`${prop.id}_${pIdx}`}
                         draggable
                         onDragStart={(e) => handleDragStart(e, prop.id)}
                         onDragEnd={handleDragEnd}
