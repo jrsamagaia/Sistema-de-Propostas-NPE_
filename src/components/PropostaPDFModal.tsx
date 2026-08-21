@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Printer, FileText, Send, Loader2, Mail } from 'lucide-react';
-import { Proposal, IntegrationSetting } from '../types';
+import { Proposal, IntegrationSetting, CardInstallmentOption, getInstallmentScheduleText } from '../types';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -199,6 +199,13 @@ export default function PropostaPDFModal({
   const entryPercent = proposal.paymentEntryPercent !== undefined ? proposal.paymentEntryPercent : 50;
   const installments = proposal.paymentInstallments !== undefined ? proposal.paymentInstallments : 10;
   const interestPercent = proposal.paymentInterestPercent !== undefined ? proposal.paymentInterestPercent : 10;
+  const cardInstallmentOptions: CardInstallmentOption[] = (proposal.cardInstallmentOptions && proposal.cardInstallmentOptions.length > 0)
+    ? proposal.cardInstallmentOptions
+    : [{
+        installments: proposal.paymentInstallments !== undefined ? proposal.paymentInstallments : 10,
+        interestPercent: proposal.paymentInterestPercent !== undefined ? proposal.paymentInterestPercent : 10
+      }];
+  const paymentDirectTerms = proposal.paymentDirectTerms || '';
   const customText = proposal.paymentCustomText || '';
   const paymentMethodCash = proposal.paymentMethodCash !== undefined ? proposal.paymentMethodCash : true;
   const paymentMethodInstallments = proposal.paymentMethodInstallments !== undefined ? proposal.paymentMethodInstallments : true;
@@ -243,6 +250,9 @@ export default function PropostaPDFModal({
   // Helper to get limit validation date
   const getValidationDate = () => {
     try {
+      if (proposal.validityDate) {
+        return proposal.validityDate;
+      }
       const vDays = proposal.validationDays !== undefined ? proposal.validationDays : 15;
       const baseDateStr = proposal.date || new Date().toLocaleDateString('pt-BR');
       
@@ -1283,11 +1293,20 @@ export default function PropostaPDFModal({
                                       Pagamento Parcelado
                                     </p>
                                     
-                                    <div className="space-y-1">
-                                      <div className="border-b border-slate-100 pb-1">
+                                    <div className="space-y-1.5">
+                                      <div className="border-b border-slate-100 pb-1.5">
                                         <p className="font-semibold text-indigo-950 text-[10px] mb-0.5">Opção A: PIX / Boleto Facilitado</p>
                                         <ul className="list-disc pl-4 space-y-0.5 text-slate-700 font-semibold text-[11px]">
-                                          {entryPercent === 100 ? (
+                                          {paymentDirectTerms ? (
+                                            <li>
+                                              Condição de Prazos: <span className="text-slate-900 font-bold">{paymentDirectTerms}</span>
+                                              {entryPercent > 0 && entryPercent < 100 && (
+                                                <span className="block text-[10px] text-slate-500 font-medium mt-0.5">
+                                                  ({entryPercent}% de Entrada: {formatCurrency(sEntrada)} + saldo conforme prazos)
+                                                </span>
+                                              )}
+                                            </li>
+                                          ) : entryPercent === 100 ? (
                                             <li>
                                               PIX/Boleto: <span className="text-slate-900 font-bold">{formatCurrency(sEntrada)}</span>
                                             </li>
@@ -1306,11 +1325,21 @@ export default function PropostaPDFModal({
                                       
                                       <div>
                                         <p className="font-semibold text-indigo-950 text-[10px] mb-0.5">Opção B: Cartão de Crédito</p>
-                                        <ul className="list-disc pl-4 space-y-0.5 text-slate-700 font-semibold text-[11px]">
-                                          <li>
-                                            Até <span className="text-indigo-950 font-bold">{installments}x</span> de <span className="text-slate-900 font-bold">{formatCurrency(sParcelas)}</span> 
-                                            {interestPercent > 0 ? ` (${formatCurrency(sTotalComJuros)} com acréscimo)` : ' sem acréscimo'}
-                                          </li>
+                                        <ul className="list-disc pl-4 space-y-1 text-slate-700 font-semibold text-[11px]">
+                                          {cardInstallmentOptions.map((cOpt, cIdx) => {
+                                            const cOptTotal = servicesSellPrice * (1 + ((cOpt.interestPercent || 0) / 100));
+                                            const cOptParcela = cOptTotal / (cOpt.installments || 1);
+                                            const scheduleText = getInstallmentScheduleText(cOpt.installments, cOpt.withEntry);
+                                            return (
+                                              <li key={cIdx}>
+                                                Até <span className="text-indigo-950 font-bold">{cOpt.installments}x</span> de <span className="text-slate-900 font-bold">{formatCurrency(cOptParcela)}</span>
+                                                {cOpt.withEntry ? (
+                                                  <span className="text-indigo-950 font-bold"> ({scheduleText})</span>
+                                                ) : null}
+                                                {cOpt.interestPercent > 0 ? ` (${formatCurrency(cOptTotal)} com acréscimo)` : ' sem acréscimo'}
+                                              </li>
+                                            );
+                                          })}
                                         </ul>
                                       </div>
                                     </div>
@@ -1527,10 +1556,12 @@ export default function PropostaPDFModal({
                                       <span className="w-1 h-1 rounded-full bg-[#E21B79]"></span>
                                       Pagamento Parcelado
                                     </p>
-                                    <div className="space-y-0.5 text-[10px] leading-tight">
+                                    <div className="space-y-1 text-[10px] leading-tight">
                                       <div>
                                         <span className="font-bold text-slate-800">PIX/Boleto: </span> 
-                                        {entryPercent === 100 ? (
+                                        {paymentDirectTerms ? (
+                                          <span className="text-slate-900 font-bold">{paymentDirectTerms}</span>
+                                        ) : entryPercent === 100 ? (
                                           <span className="text-slate-900 font-bold">{formatCurrency(optEntrada)}</span>
                                         ) : (
                                           <>
@@ -1541,8 +1572,22 @@ export default function PropostaPDFModal({
                                       </div>
                                       <div>
                                         <span className="font-bold text-slate-800">Cartão: </span> 
-                                        Até <strong className="text-slate-950">{installments}x</strong> de <strong className="text-slate-950">{formatCurrency(optParcelas)}</strong>
-                                        {interestPercent > 0 ? ` (${formatCurrency(optTotalComJuros)} com acréscimo)` : ' sem acréscimo'}
+                                        <div className="pl-2 space-y-0.5 mt-0.5">
+                                          {cardInstallmentOptions.map((cOpt, cIdx) => {
+                                            const cOptTotal = opt.sellPrice * (1 + ((cOpt.interestPercent || 0) / 100));
+                                            const cOptParcela = cOptTotal / (cOpt.installments || 1);
+                                            const scheduleText = getInstallmentScheduleText(cOpt.installments, cOpt.withEntry);
+                                            return (
+                                              <div key={cIdx}>
+                                                • Até <strong className="text-slate-950">{cOpt.installments}x</strong> de <strong className="text-slate-950">{formatCurrency(cOptParcela)}</strong>
+                                                {cOpt.withEntry ? (
+                                                  <strong className="text-indigo-950"> ({scheduleText})</strong>
+                                                ) : null}
+                                                {cOpt.interestPercent > 0 ? ` (${formatCurrency(cOptTotal)} c/ acréscimo)` : ' sem acréscimo'}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Pencil, Trash2, Plus, Save, Settings, X, FileText, Printer, Clock, Send, Loader2, Search, Calendar, Filter, ChevronDown } from 'lucide-react';
-import { Proposal, Supply, Rate, Status, ProposalItem, Lead, IntegrationSetting } from '../types';
+import { Proposal, Supply, Rate, Status, ProposalItem, Lead, IntegrationSetting, CardInstallmentOption, getInstallmentScheduleText } from '../types';
 import PropostaPDFModal from './PropostaPDFModal';
 import AutocompleteSelect from './AutocompleteSelect';
 
@@ -40,6 +40,17 @@ export default function Propostas({
   const [projectType, setProjectType] = useState<'editorial' | 'cultural'>('editorial');
   const [items, setItems] = useState<ProposalItem[]>([]);
   const [editingProposalId, setEditingProposalId] = useState<number | null>(null);
+
+  // Proposal Creation & Validity Dates
+  const [proposalDate, setProposalDate] = useState<string>(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  });
+  const [proposalValidityDate, setProposalValidityDate] = useState<string>(() => {
+    const valD = new Date();
+    valD.setDate(valD.getDate() + 15);
+    return `${valD.getFullYear()}-${String(valD.getMonth() + 1).padStart(2, '0')}-${String(valD.getDate()).padStart(2, '0')}`;
+  });
 
   // Approved values states
   const [approvedValue, setApprovedValue] = useState<number | undefined>(undefined);
@@ -109,6 +120,11 @@ export default function Propostas({
       setIsCreating(true);
       setProposalName('');
       setProjectType('editorial');
+      const todayISO = formatToISO(new Date().toLocaleDateString('pt-BR'));
+      setProposalDate(todayISO);
+      const valD = new Date();
+      valD.setDate(valD.getDate() + 15);
+      setProposalValidityDate(`${valD.getFullYear()}-${String(valD.getMonth() + 1).padStart(2, '0')}-${String(valD.getDate()).padStart(2, '0')}`);
       setItems([]);
       setEditingProposalId(null);
       setEditingItemId(null);
@@ -120,6 +136,8 @@ export default function Propostas({
       setPaymentEntryPercent(50);
       setPaymentInstallments(10);
       setPaymentInterestPercent(10);
+      setCardInstallmentOptions([{ id: '1', installments: 10, interestPercent: 10 }]);
+      setPaymentDirectTerms('Entrada, 30 e 60 dias');
       setPaymentCustomText('');
       setValidationDays(15);
       setDeliveryDays(30);
@@ -134,6 +152,18 @@ export default function Propostas({
       setEditingProposalId(proposalToEdit.id);
       setProposalName(proposalToEdit.name);
       setProjectType(proposalToEdit.projectType || 'editorial');
+      
+      const editDateISO = formatToISO(proposalToEdit.date);
+      setProposalDate(editDateISO);
+      if (proposalToEdit.validityDate) {
+        setProposalValidityDate(formatToISO(proposalToEdit.validityDate));
+      } else {
+        const baseD = parseDate(proposalToEdit.date);
+        const vDays = proposalToEdit.validationDays != null ? proposalToEdit.validationDays : 15;
+        const vD = new Date(baseD);
+        vD.setDate(vD.getDate() + vDays);
+        setProposalValidityDate(`${vD.getFullYear()}-${String(vD.getMonth() + 1).padStart(2, '0')}-${String(vD.getDate()).padStart(2, '0')}`);
+      }
       
       const normalizedItems = proposalToEdit.items.map(item => {
         if (item.type === 'produto' && (!item.shippingCost || item.shippingCost <= 0)) {
@@ -161,6 +191,15 @@ export default function Propostas({
       setPaymentEntryPercent(proposalToEdit.paymentEntryPercent != null ? proposalToEdit.paymentEntryPercent : 50);
       setPaymentInstallments(proposalToEdit.paymentInstallments != null ? proposalToEdit.paymentInstallments : 10);
       setPaymentInterestPercent(proposalToEdit.paymentInterestPercent != null ? proposalToEdit.paymentInterestPercent : 10);
+      setPaymentDirectTerms(proposalToEdit.paymentDirectTerms || 'Entrada, 30 e 60 dias');
+      const loadedOptions: CardInstallmentOption[] = (proposalToEdit.cardInstallmentOptions && proposalToEdit.cardInstallmentOptions.length > 0)
+        ? proposalToEdit.cardInstallmentOptions
+        : [{
+            id: '1',
+            installments: proposalToEdit.paymentInstallments != null ? proposalToEdit.paymentInstallments : 10,
+            interestPercent: proposalToEdit.paymentInterestPercent != null ? proposalToEdit.paymentInterestPercent : 10
+          }];
+      setCardInstallmentOptions(loadedOptions);
       setPaymentCustomText(proposalToEdit.paymentCustomText || '');
       setValidationDays(proposalToEdit.validationDays != null ? proposalToEdit.validationDays : 15);
       setDeliveryDays(proposalToEdit.deliveryDays != null ? proposalToEdit.deliveryDays : 30);
@@ -230,7 +269,44 @@ export default function Propostas({
   const [paymentEntryPercent, setPaymentEntryPercent] = useState<number>(50);
   const [paymentInstallments, setPaymentInstallments] = useState<number>(10);
   const [paymentInterestPercent, setPaymentInterestPercent] = useState<number>(10);
+  const [cardInstallmentOptions, setCardInstallmentOptions] = useState<CardInstallmentOption[]>([
+    { id: '1', installments: 10, interestPercent: 10 }
+  ]);
+  const [paymentDirectTerms, setPaymentDirectTerms] = useState<string>('Entrada, 30 e 60 dias');
   const [paymentCustomText, setPaymentCustomText] = useState<string>('');
+
+  const handleAddCardInstallmentOption = () => {
+    const lastOption = cardInstallmentOptions[cardInstallmentOptions.length - 1];
+    const nextInstallments = lastOption ? (lastOption.installments >= 12 ? Math.min(48, lastOption.installments + 6) : 12) : 12;
+    const nextInterest = lastOption ? Number((lastOption.interestPercent + 2.5).toFixed(1)) : 12;
+    setCardInstallmentOptions([
+      ...cardInstallmentOptions,
+      { 
+        id: Date.now().toString(), 
+        installments: nextInstallments, 
+        interestPercent: nextInterest,
+        withEntry: lastOption ? lastOption.withEntry : true
+      }
+    ]);
+  };
+
+  const handleRemoveCardInstallmentOption = (index: number) => {
+    if (cardInstallmentOptions.length <= 1) return;
+    setCardInstallmentOptions(cardInstallmentOptions.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateCardInstallmentOption = (index: number, field: 'installments' | 'interestPercent' | 'withEntry', value: any) => {
+    const updated = [...cardInstallmentOptions];
+    updated[index] = {
+      ...updated[index],
+      [field]: value
+    };
+    setCardInstallmentOptions(updated);
+    if (index === 0) {
+      if (field === 'installments') setPaymentInstallments(value);
+      if (field === 'interestPercent') setPaymentInterestPercent(value);
+    }
+  };
 
   // Deadlines states
   const [validationDays, setValidationDays] = useState<number>(15);
@@ -407,6 +483,8 @@ export default function Propostas({
           ...existingProp,
           name: proposalName,
           projectType,
+          date: formatToBR(proposalDate) || existingProp.date || new Date().toLocaleDateString('pt-BR'),
+          validityDate: formatToBR(proposalValidityDate) || undefined,
           items: [...items],
           totalCost,
           sellPrice,
@@ -414,8 +492,10 @@ export default function Propostas({
           paymentMethodInstallments,
           paymentDiscountPercent,
           paymentEntryPercent,
-          paymentInstallments,
-          paymentInterestPercent,
+          paymentInstallments: cardInstallmentOptions[0]?.installments || paymentInstallments || 10,
+          paymentInterestPercent: cardInstallmentOptions[0]?.interestPercent != null ? cardInstallmentOptions[0].interestPercent : paymentInterestPercent,
+          cardInstallmentOptions: cardInstallmentOptions.length > 0 ? cardInstallmentOptions : [{ id: '1', installments: paymentInstallments, interestPercent: paymentInterestPercent }],
+          paymentDirectTerms: paymentDirectTerms.trim() || undefined,
           paymentCustomText,
           validationDays,
           deliveryDays,
@@ -440,7 +520,8 @@ export default function Propostas({
         id: newId,
         name: proposalName,
         projectType,
-        date: new Date().toLocaleDateString('pt-BR'),
+        date: formatToBR(proposalDate) || new Date().toLocaleDateString('pt-BR'),
+        validityDate: formatToBR(proposalValidityDate) || undefined,
         items: [...items],
         totalCost,
         sellPrice,
@@ -449,8 +530,10 @@ export default function Propostas({
         paymentMethodInstallments,
         paymentDiscountPercent,
         paymentEntryPercent,
-        paymentInstallments,
-        paymentInterestPercent,
+        paymentInstallments: cardInstallmentOptions[0]?.installments || paymentInstallments || 10,
+        paymentInterestPercent: cardInstallmentOptions[0]?.interestPercent != null ? cardInstallmentOptions[0].interestPercent : paymentInterestPercent,
+        cardInstallmentOptions: cardInstallmentOptions.length > 0 ? cardInstallmentOptions : [{ id: '1', installments: paymentInstallments, interestPercent: paymentInterestPercent }],
+        paymentDirectTerms: paymentDirectTerms.trim() || undefined,
         paymentCustomText,
         validationDays,
         deliveryDays,
@@ -477,6 +560,15 @@ export default function Propostas({
     setPaymentEntryPercent(prop.paymentEntryPercent != null ? prop.paymentEntryPercent : 50);
     setPaymentInstallments(prop.paymentInstallments != null ? prop.paymentInstallments : 10);
     setPaymentInterestPercent(prop.paymentInterestPercent != null ? prop.paymentInterestPercent : 10);
+    setPaymentDirectTerms(prop.paymentDirectTerms || 'Entrada, 30 e 60 dias');
+    const editOptions: CardInstallmentOption[] = (prop.cardInstallmentOptions && prop.cardInstallmentOptions.length > 0)
+      ? prop.cardInstallmentOptions
+      : [{
+          id: '1',
+          installments: prop.paymentInstallments != null ? prop.paymentInstallments : 10,
+          interestPercent: prop.paymentInterestPercent != null ? prop.paymentInterestPercent : 10
+        }];
+    setCardInstallmentOptions(editOptions);
     setPaymentCustomText(prop.paymentCustomText || '');
     setValidationDays(prop.validationDays != null ? prop.validationDays : 15);
     setDeliveryDays(prop.deliveryDays != null ? prop.deliveryDays : 30);
@@ -508,6 +600,8 @@ export default function Propostas({
     setPaymentEntryPercent(50);
     setPaymentInstallments(10);
     setPaymentInterestPercent(10);
+    setCardInstallmentOptions([{ id: '1', installments: 10, interestPercent: 10 }]);
+    setPaymentDirectTerms('Entrada, 30 e 60 dias');
     setPaymentCustomText('');
     setValidationDays(15);
     setDeliveryDays(30);
@@ -603,6 +697,61 @@ export default function Propostas({
             ) : (
               <span>Exibe cada item de serviço com seu valor total individual no PDF.</span>
             )}
+          </div>
+        </div>
+
+        {/* Datas da Proposta: Criação e Validade */}
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div>
+            <label className="block text-xs font-bold text-slate-600 uppercase mb-2">
+              Data Criação Proposta <span className="text-red-500 font-semibold">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type="date"
+                value={proposalDate}
+                onChange={(e) => {
+                  setProposalDate(e.target.value);
+                  if (e.target.value) {
+                    const newBase = new Date(e.target.value + 'T00:00:00');
+                    if (!isNaN(newBase.getTime())) {
+                      const newVal = new Date(newBase);
+                      newVal.setDate(newVal.getDate() + (validationDays || 15));
+                      setProposalValidityDate(`${newVal.getFullYear()}-${String(newVal.getMonth() + 1).padStart(2, '0')}-${String(newVal.getDate()).padStart(2, '0')}`);
+                    }
+                  }
+                }}
+                className="w-full border border-gray-200 bg-white rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 font-sans"
+                required
+              />
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">Data de emissão inicial do orçamento.</p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-600 uppercase mb-2">
+              Validade da proposta <span className="text-red-500 font-semibold">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type="date"
+                value={proposalValidityDate}
+                onChange={(e) => {
+                  setProposalValidityDate(e.target.value);
+                  if (proposalDate && e.target.value) {
+                    const d1 = new Date(proposalDate + 'T00:00:00');
+                    const d2 = new Date(e.target.value + 'T00:00:00');
+                    const diffDays = Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
+                    if (diffDays > 0) {
+                      setValidationDays(diffDays);
+                    }
+                  }
+                }}
+                className="w-full border border-gray-200 bg-white rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 font-sans"
+                required
+              />
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">Data de validade do orçamento (usada no filtro mensal das propostas não aprovadas).</p>
           </div>
         </div>
 
@@ -1037,60 +1186,208 @@ export default function Propostas({
                     Configurações - Pagamento Parcelado
                   </h5>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Entrada no Pix/Boleto (%)</label>
-                      <input 
-                        type="number"
-                        min="0"
-                        max="100"
-                        disabled={!paymentMethodInstallments}
-                        value={paymentEntryPercent}
-                        onChange={(e) => setPaymentEntryPercent(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-                        className="w-full border border-slate-300 bg-white disabled:bg-slate-100 disabled:text-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 font-sans"
-                        placeholder="Ex: 50"
-                      />
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        {paymentEntryPercent === 100 ? 'Pagamento integral no ato.' : `Restante (${100 - paymentEntryPercent}%) na entrega.`}
-                      </p>
-                    </div>
+                  {/* Seção 1: Condição Direta / Prazos (PIX / Boleto / Faturamento) */}
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 mb-5">
+                    <h6 className="font-bold text-xs uppercase tracking-wider text-slate-700 mb-3 flex items-center justify-between">
+                      <span>1. Faturamento Direto / PIX / Boleto</span>
+                      <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">Ex: Entrada, 30 e 60 dias</span>
+                    </h6>
 
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Quantidade de Parcelas (Cartão)</label>
-                      <input 
-                        type="number"
-                        min="1"
-                        max="48"
-                        disabled={!paymentMethodInstallments}
-                        value={paymentInstallments}
-                        onChange={(e) => setPaymentInstallments(Math.max(1, parseInt(e.target.value) || 1))}
-                        className="w-full border border-slate-300 bg-white disabled:bg-slate-100 disabled:text-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 font-sans"
-                        placeholder="Ex: 10"
-                      />
-                      <p className="text-[10px] text-slate-400 mt-1">Número máximo de parcelas no cartão.</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Acréscimo/Juros do Parcelamento (%)</label>
-                      <input 
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        disabled={!paymentMethodInstallments}
-                        value={paymentInterestPercent}
-                        onChange={(e) => setPaymentInterestPercent(Math.max(0, parseFloat(e.target.value) || 0))}
-                        className="w-full border border-slate-300 bg-white disabled:bg-slate-100 disabled:text-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 font-sans"
-                        placeholder="Ex: 10"
-                      />
-                      <p className="text-[10px] text-slate-400 mt-1">Acréscimo sob o valor (0 para sem juros).</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Valor Final Aprovado (com juros)</label>
-                      <div className="relative rounded-lg shadow-inner bg-slate-50 border border-slate-200 px-3 py-2 text-sm text-slate-700 font-mono font-bold h-[38px] flex items-center">
-                        R$ {(currentSellPrice * (1 + paymentInterestPercent / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Entrada no Pix/Boleto (%)</label>
+                        <input 
+                          type="number"
+                          min="0"
+                          max="100"
+                          disabled={!paymentMethodInstallments}
+                          value={paymentEntryPercent}
+                          onChange={(e) => setPaymentEntryPercent(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                          className="w-full border border-slate-300 bg-white disabled:bg-slate-100 disabled:text-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 font-sans"
+                          placeholder="Ex: 50"
+                        />
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          {paymentEntryPercent === 100 ? 'Pagamento integral no ato.' : `Restante (${100 - paymentEntryPercent}%) na entrega ou conforme os prazos.`}
+                        </p>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1">Calculado automaticamente com base nos juros.</p>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Condição de Prazos (PIX / Boleto / Faturamento)</label>
+                        <input 
+                          type="text"
+                          disabled={!paymentMethodInstallments}
+                          value={paymentDirectTerms}
+                          onChange={(e) => setPaymentDirectTerms(e.target.value)}
+                          className="w-full border border-slate-300 bg-white disabled:bg-slate-100 disabled:text-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 font-sans font-semibold text-slate-800"
+                          placeholder="Ex: Entrada, 30 e 60 dias"
+                        />
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          <span className="text-[10px] text-slate-400 self-center">Sugestões rápidas:</span>
+                          {[
+                            'Entrada, 30 e 60 dias',
+                            'Entrada (50%) + Na entrega (50%)',
+                            'Entrada, 30, 60 e 90 dias',
+                            '30, 60 e 90 dias'
+                          ].map((suggestion) => (
+                            <button
+                              key={suggestion}
+                              type="button"
+                              disabled={!paymentMethodInstallments}
+                              onClick={() => setPaymentDirectTerms(suggestion)}
+                              className="text-[10px] bg-white hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 border border-slate-200 text-slate-600 px-2 py-0.5 rounded transition-colors cursor-pointer"
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Seção 2: Condições de Cartão de Crédito (Múltiplas Opções) */}
+                  <div className="bg-indigo-50/30 p-4 rounded-xl border border-indigo-100/80">
+                    <div className="flex items-center justify-between border-b border-indigo-100 pb-2 mb-3">
+                      <div>
+                        <h6 className="font-bold text-xs uppercase tracking-wider text-indigo-950 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-[#E21B79]"></span>
+                          2. Condições de Parcelamento no Cartão de Crédito
+                        </h6>
+                        <p className="text-[11px] text-slate-500">Adicione quantas condições de parcelas e juros forem necessárias.</p>
+                      </div>
+                      <span className="text-xs font-bold text-[#E21B79] bg-pink-50 border border-pink-200 px-2 py-0.5 rounded-full">
+                        {cardInstallmentOptions.length} {cardInstallmentOptions.length === 1 ? 'condição configurada' : 'condições configuradas'}
+                      </span>
+                    </div>
+
+                    <div className="space-y-4">
+                      {cardInstallmentOptions.map((opt, index) => {
+                        const optTotalComJuros = currentSellPrice * (1 + (opt.interestPercent || 0) / 100);
+                        const optValorParcela = optTotalComJuros / (opt.installments || 1);
+                        const calculatedSchedule = getInstallmentScheduleText(opt.installments, opt.withEntry);
+
+                        return (
+                          <div key={opt.id || index} className="p-3.5 bg-white rounded-xl border border-slate-200/90 shadow-sm relative group">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-bold text-indigo-900 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-wide border border-indigo-100">
+                                  Condição #{index + 1}
+                                </span>
+                                {opt.withEntry && (
+                                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                    1ª Parcela = Entrada
+                                  </span>
+                                )}
+                              </div>
+                              {cardInstallmentOptions.length > 1 && (
+                                <button
+                                  type="button"
+                                  disabled={!paymentMethodInstallments}
+                                  onClick={() => handleRemoveCardInstallmentOption(index)}
+                                  className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1 rounded-md transition-colors cursor-pointer"
+                                  title="Remover esta condição de parcelamento"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div>
+                                <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
+                                  Quantidade de Parcelas (Cartão)
+                                </label>
+                                <input 
+                                  type="number"
+                                  min="1"
+                                  max="48"
+                                  disabled={!paymentMethodInstallments}
+                                  value={opt.installments}
+                                  onChange={(e) => handleUpdateCardInstallmentOption(index, 'installments', Math.max(1, parseInt(e.target.value) || 1))}
+                                  className="w-full border border-slate-300 bg-white disabled:bg-slate-100 disabled:text-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 font-sans font-semibold"
+                                  placeholder="Ex: 10"
+                                />
+                                <p className="text-[10px] text-slate-400 mt-1">Número de parcelas.</p>
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
+                                  Acréscimo/Juros do Parcelamento (%)
+                                </label>
+                                <input 
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  disabled={!paymentMethodInstallments}
+                                  value={opt.interestPercent}
+                                  onChange={(e) => handleUpdateCardInstallmentOption(index, 'interestPercent', Math.max(0, parseFloat(e.target.value) || 0))}
+                                  className="w-full border border-slate-300 bg-white disabled:bg-slate-100 disabled:text-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 font-sans font-semibold"
+                                  placeholder="Ex: 10"
+                                />
+                                <p className="text-[10px] text-slate-400 mt-1">0% para sem juros.</p>
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
+                                  Valor Final Aprovado (com juros)
+                                </label>
+                                <div className="rounded-lg shadow-inner bg-slate-50 border border-slate-200 px-3 py-1.5 text-xs text-slate-800 font-mono font-bold flex flex-col justify-center min-h-[38px]">
+                                  <span className="text-slate-900 text-sm">
+                                    R$ {optTotalComJuros.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 font-sans font-medium">
+                                    {opt.installments}x de R$ {optValorParcela.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {opt.interestPercent === 0 ? '(Sem juros)' : `(+${opt.interestPercent}%)`}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Campo checkbox para pagamento de entrada como opcional e cálculo automático */}
+                            <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/80 -mx-3.5 -mb-3.5 p-3 rounded-b-xl">
+                              <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={!!opt.withEntry}
+                                  disabled={!paymentMethodInstallments}
+                                  onChange={(e) => handleUpdateCardInstallmentOption(index, 'withEntry', e.target.checked)}
+                                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                />
+                                <span className="text-xs font-bold text-slate-700">
+                                  Exigir Entrada (1ª parcela para início do projeto)
+                                </span>
+                              </label>
+
+                              <div className="flex flex-wrap items-center gap-2 text-xs">
+                                <span className="text-slate-500 font-medium">Cronograma calculado:</span>
+                                <span className="font-bold text-indigo-900 bg-white border border-indigo-200 px-2.5 py-1 rounded-md shadow-2xs">
+                                  {calculatedSchedule}
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={!paymentMethodInstallments}
+                                  onClick={() => setPaymentDirectTerms(calculatedSchedule)}
+                                  className="text-[11px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2.5 py-1 rounded-md border border-indigo-200 transition-colors cursor-pointer"
+                                  title="Copiar este cronograma para o campo de Faturamento Direto / PIX"
+                                >
+                                  Usar no Faturamento
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Botão de Mais abaixo dos campos */}
+                    <div className="mt-3.5 pt-2 border-t border-indigo-100">
+                      <button
+                        type="button"
+                        disabled={!paymentMethodInstallments}
+                        onClick={handleAddCardInstallmentOption}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Plus size={16} />
+                        Adicionar outra condição de parcelamento (Cartão)
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1272,8 +1569,10 @@ export default function Propostas({
                       paymentMethodInstallments,
                       paymentDiscountPercent,
                       paymentEntryPercent,
-                      paymentInstallments,
-                      paymentInterestPercent,
+                      paymentInstallments: cardInstallmentOptions[0]?.installments || paymentInstallments || 10,
+                      paymentInterestPercent: cardInstallmentOptions[0]?.interestPercent != null ? cardInstallmentOptions[0].interestPercent : paymentInterestPercent,
+                      cardInstallmentOptions,
+                      paymentDirectTerms,
                       paymentCustomText,
                       validationDays,
                       deliveryDays,
@@ -1322,9 +1621,12 @@ export default function Propostas({
                       totalCost: currentTotalCost,
                       sellPrice: currentSellPrice,
                       status: 'Em desenvolvimento',
+                      paymentDiscountPercent,
                       paymentEntryPercent,
-                      paymentInstallments,
-                      paymentInterestPercent,
+                      paymentInstallments: cardInstallmentOptions[0]?.installments || paymentInstallments || 10,
+                      paymentInterestPercent: cardInstallmentOptions[0]?.interestPercent != null ? cardInstallmentOptions[0].interestPercent : paymentInterestPercent,
+                      cardInstallmentOptions,
+                      paymentDirectTerms,
                       paymentCustomText,
                       validationDays,
                       deliveryDays,

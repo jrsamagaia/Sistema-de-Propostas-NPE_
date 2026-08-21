@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, CheckCircle, X, Pencil, Trash2, GripVertical, Calendar, Search, RotateCcw, Filter, DollarSign } from 'lucide-react';
-import { Proposal, Status } from '../types';
+import { Plus, CheckCircle, X, Pencil, Trash2, GripVertical, Search, DollarSign, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { Proposal, Status, getInstallmentScheduleText } from '../types';
 import AutocompleteSelect from './AutocompleteSelect';
 
 const MONTH_NAMES = [
@@ -45,10 +45,29 @@ const parseProposalDate = (dateStr?: string): Date | null => {
 
 const getEffectiveDate = (prop: Proposal): Date | null => {
   const isApproved = prop.status && prop.status.toLowerCase().includes('aprovad');
-  if (isApproved && prop.approvedDate) {
-    const parsedApproved = parseProposalDate(prop.approvedDate);
-    if (parsedApproved) return parsedApproved;
+  if (isApproved) {
+    if (prop.approvedDate) {
+      const parsedApproved = parseProposalDate(prop.approvedDate);
+      if (parsedApproved) return parsedApproved;
+    }
+    return parseProposalDate(prop.date);
   }
+
+  // Para propostas com status diferente de aprovada: filtrar pela Validade da Proposta
+  if (prop.validityDate) {
+    const parsedValidity = parseProposalDate(prop.validityDate);
+    if (parsedValidity) return parsedValidity;
+  }
+
+  if (prop.date && prop.validationDays) {
+    const baseDate = parseProposalDate(prop.date);
+    if (baseDate) {
+      const vDate = new Date(baseDate);
+      vDate.setDate(vDate.getDate() + prop.validationDays);
+      return vDate;
+    }
+  }
+
   return parseProposalDate(prop.date);
 };
 
@@ -103,9 +122,9 @@ export default function KanbanBoard({
   const [editingStatusId, setEditingStatusId] = useState<number | null>(null);
   const [editingStatusName, setEditingStatusName] = useState('');
 
-  // Filtering states
-  const [filterMonth, setFilterMonth] = useState<string>('all'); // 'all' | '0'..'11'
-  const [filterYear, setFilterYear] = useState<string>('all'); // 'all' | '2026'..
+  // Filtering states - default to current month and year
+  const [filterMonth, setFilterMonth] = useState<string>(() => new Date().getMonth().toString()); // 'all' | '0'..'11'
+  const [filterYear, setFilterYear] = useState<string>(() => new Date().getFullYear().toString()); // 'all' | '2026'..
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Approval Modal States
@@ -341,18 +360,40 @@ export default function KanbanBoard({
     }, 0);
   }, [filteredProposals]);
 
-  const isFilterActive = filterMonth !== 'all' || filterYear !== 'all' || searchQuery.trim().length > 0;
-
-  const handleClearFilters = () => {
-    setFilterMonth('all');
-    setFilterYear('all');
-    setSearchQuery('');
+  const handlePrevMonth = () => {
+    if (filterMonth === 'all') {
+      const now = new Date();
+      setFilterMonth(now.getMonth().toString());
+      setFilterYear(now.getFullYear().toString());
+      return;
+    }
+    let m = parseInt(filterMonth, 10);
+    let y = filterYear === 'all' ? new Date().getFullYear() : parseInt(filterYear, 10);
+    m -= 1;
+    if (m < 0) {
+      m = 11;
+      y -= 1;
+    }
+    setFilterMonth(m.toString());
+    setFilterYear(y.toString());
   };
 
-  const handleSetCurrentMonth = () => {
-    const now = new Date();
-    setFilterMonth(now.getMonth().toString());
-    setFilterYear(now.getFullYear().toString());
+  const handleNextMonth = () => {
+    if (filterMonth === 'all') {
+      const now = new Date();
+      setFilterMonth(now.getMonth().toString());
+      setFilterYear(now.getFullYear().toString());
+      return;
+    }
+    let m = parseInt(filterMonth, 10);
+    let y = filterYear === 'all' ? new Date().getFullYear() : parseInt(filterYear, 10);
+    m += 1;
+    if (m > 11) {
+      m = 0;
+      y += 1;
+    }
+    setFilterMonth(m.toString());
+    setFilterYear(y.toString());
   };
 
   const getColumnStyle = (statusName: string) => {
@@ -374,64 +415,66 @@ export default function KanbanBoard({
 
   return (
     <div className="h-full flex flex-col space-y-3 animate-fade-in">
-      {/* Filter Toolbar */}
-      <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs shrink-0 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 font-sans">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="flex items-center gap-1.5 text-slate-600 text-xs font-bold uppercase tracking-wider">
-            <Filter size={15} className="text-indigo-600" />
-            <span>Filtro:</span>
-          </div>
-
-          {/* Month Selector */}
-          <div className="relative min-w-[170px]">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400">
-              <Calendar size={14} />
-            </div>
-            <select
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-lg pl-8 pr-7 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white cursor-pointer transition-all appearance-none"
+      {/* Month Navigator & Search Toolbar */}
+      <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-xs shrink-0 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 font-sans">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Month / Period Navigator with < [Mês de Ano ⌄] > */}
+          <div className="inline-flex items-center bg-white border border-slate-200 hover:border-slate-300 rounded-lg shadow-xs overflow-hidden transition-all">
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              className="px-2.5 py-1.5 hover:bg-slate-50 text-slate-500 hover:text-slate-800 border-r border-slate-200 transition-colors cursor-pointer flex items-center justify-center"
+              title="Mês anterior"
             >
-              <option value="all">Todos os Meses</option>
-              {MONTH_NAMES.map((mName, idx) => (
-                <option key={idx} value={idx.toString()}>
-                  {mName} ({String(idx + 1).padStart(2, '0')})
-                </option>
-              ))}
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 text-[10px]">
-              ▼
+              <ChevronLeft size={16} />
+            </button>
+            
+            <div className="relative flex items-center px-3 py-1.5 hover:bg-slate-50 cursor-pointer transition-colors group">
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5 whitespace-nowrap min-w-[135px] justify-center select-none">
+                {filterMonth === 'all' 
+                  ? 'Todos os Períodos'
+                  : `${MONTH_NAMES[parseInt(filterMonth, 10)]} de ${filterYear === 'all' ? new Date().getFullYear() : filterYear}`
+                }
+                <ChevronDown size={13} className="text-slate-400 group-hover:text-slate-600 transition-colors" />
+              </span>
+              <select
+                value={filterMonth === 'all' ? 'all' : `${filterMonth}-${filterYear}`}
+                onChange={(e) => {
+                  if (e.target.value === 'all') {
+                    setFilterMonth('all');
+                    setFilterYear('all');
+                  } else {
+                    const [m, y] = e.target.value.split('-');
+                    setFilterMonth(m);
+                    setFilterYear(y);
+                  }
+                }}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                title="Selecionar período"
+              >
+                <option value="all">Todos os Períodos</option>
+                {availableYears.map(yr => (
+                  MONTH_NAMES.map((mName, idx) => (
+                    <option key={`${idx}-${yr}`} value={`${idx}-${yr}`}>
+                      {mName} de {yr}
+                    </option>
+                  ))
+                ))}
+              </select>
             </div>
-          </div>
 
-          {/* Year Selector */}
-          <div className="relative min-w-[130px]">
-            <select
-              value={filterYear}
-              onChange={(e) => setFilterYear(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white cursor-pointer transition-all appearance-none"
+            <button
+              type="button"
+              onClick={handleNextMonth}
+              className="px-2.5 py-1.5 hover:bg-slate-50 text-slate-500 hover:text-slate-800 border-l border-slate-200 transition-colors cursor-pointer flex items-center justify-center"
+              title="Próximo mês"
             >
-              <option value="all">Todos os Anos</option>
-              {availableYears.map(yr => (
-                <option key={yr} value={yr.toString()}>{yr}</option>
-              ))}
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 text-[10px]">
-              ▼
-            </div>
+              <ChevronRight size={16} />
+            </button>
           </div>
-
-          {/* Quick Current Month Button */}
-          <button
-            type="button"
-            onClick={handleSetCurrentMonth}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 transition-colors cursor-pointer whitespace-nowrap"
-          >
-            Mês Atual
-          </button>
 
           {/* Search Box */}
-          <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <div className="relative flex-1 min-w-[200px] max-w-xs">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400">
               <Search size={14} />
             </div>
@@ -452,28 +495,14 @@ export default function KanbanBoard({
               </button>
             )}
           </div>
-
-          {/* Clear Filters button */}
-          {isFilterActive && (
-            <button
-              type="button"
-              onClick={handleClearFilters}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors cursor-pointer"
-              title="Limpar todos os filtros"
-            >
-              <RotateCcw size={12} />
-              <span>Limpar</span>
-            </button>
-          )}
         </div>
 
         {/* Filter Results Summary */}
-        <div className="flex items-center gap-3 text-xs font-medium text-slate-500 self-end lg:self-center">
+        <div className="flex items-center gap-3 text-xs font-medium text-slate-500 self-end md:self-center">
           <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md font-semibold text-[11px]">
             {filteredProposals.length} {filteredProposals.length === 1 ? 'proposta' : 'propostas'}
-            {isFilterActive && ` de ${proposals.length}`}
           </span>
-          <span className="text-slate-400">•</span>
+          <span className="text-slate-300">•</span>
           <span className="font-bold text-slate-800 font-mono text-[12px]">
             Total: R$ {totalFilteredValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </span>
@@ -579,10 +608,10 @@ export default function KanbanBoard({
                       >
                         <div className="text-[10px] font-bold text-slate-400 mb-1 flex items-center justify-between pr-6">
                           <span>#{prop.id.toString().slice(-6)}</span>
-                          <span className="truncate">
+                          <span className="truncate" title={prop.status.toLowerCase().includes('aprovad') ? `Aprovada em ${prop.approvedDate || prop.date}` : `Criada: ${prop.date}${prop.validityDate ? ` | Validade: ${prop.validityDate}` : ''}`}>
                             {prop.status.toLowerCase().includes('aprovad') && prop.approvedDate
                               ? `Aprovada: ${prop.approvedDate}`
-                              : prop.date}
+                              : (prop.validityDate ? `Válida até: ${prop.validityDate}` : prop.date)}
                           </span>
                         </div>
                         {prop.clientName && (
@@ -770,8 +799,8 @@ export default function KanbanBoard({
               </div>
 
               {(approvedPaymentMethod === 'Cartão de Crédito Parcelado' || approvedPaymentMethod === 'Entrada + Parcelas') && (
-                <div className="animate-fade-in">
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Detalhamento de Entrada / Parcelas <span className="text-red-500">*</span></label>
+                <div className="animate-fade-in space-y-2">
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Detalhamento de Entrada / Parcelas <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     required
@@ -780,6 +809,45 @@ export default function KanbanBoard({
                     onChange={(e) => setApprovedInstallmentsDetails(e.target.value)}
                     className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-slate-800 bg-white placeholder-slate-400 font-semibold"
                   />
+
+                  {/* Sugestões baseadas nas condições salvas na proposta */}
+                  {approvedPaymentMethod === 'Cartão de Crédito Parcelado' && proposalForApproval.cardInstallmentOptions && proposalForApproval.cardInstallmentOptions.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span className="text-[10px] text-slate-400 self-center">Opções da proposta:</span>
+                      {proposalForApproval.cardInstallmentOptions.map((opt, idx) => {
+                        const totalComJuros = proposalForApproval.sellPrice * (1 + (opt.interestPercent || 0) / 100);
+                        const parcela = totalComJuros / (opt.installments || 1);
+                        const schedule = opt.withEntry ? getInstallmentScheduleText(opt.installments, true) : '';
+                        const text = `${opt.installments}x de R$ ${parcela.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${schedule ? ` (${schedule})` : ''}${opt.interestPercent ? ` (${opt.interestPercent}% juros)` : ' (sem juros)'}`;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              setApprovedInstallmentsDetails(text);
+                              setApprovedValue(totalComJuros.toFixed(2));
+                            }}
+                            className="text-[11px] bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200 text-slate-700 px-2.5 py-1 rounded-md transition-colors font-medium cursor-pointer"
+                          >
+                            {opt.installments}x {opt.withEntry ? '(Entrada)' : ''} {opt.interestPercent ? `(+${opt.interestPercent}%)` : '(s/ juros)'}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {approvedPaymentMethod === 'Entrada + Parcelas' && proposalForApproval.paymentDirectTerms && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span className="text-[10px] text-slate-400 self-center">Condição da proposta:</span>
+                      <button
+                        type="button"
+                        onClick={() => setApprovedInstallmentsDetails(proposalForApproval.paymentDirectTerms || '')}
+                        className="text-[11px] bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 border border-slate-200 text-slate-700 px-2.5 py-1 rounded-md transition-colors font-medium cursor-pointer"
+                      >
+                        {proposalForApproval.paymentDirectTerms}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
