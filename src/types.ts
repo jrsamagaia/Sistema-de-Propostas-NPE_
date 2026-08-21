@@ -46,6 +46,7 @@ export interface Status {
   id: number;
   name: string;
   order: number;
+  color?: string;
 }
 
 export interface ProposalItem {
@@ -144,3 +145,44 @@ export interface IntegrationSetting {
   smtpFrom?: string;
   smtpSsl?: boolean;
 }
+
+export const isApprovedStatusName = (statusName?: string): boolean => {
+  if (!statusName) return false;
+  const lower = statusName
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+  
+  // Explicitly check for rejections, negatives and non-approved statuses FIRST
+  if (
+    lower.includes('nao') || 
+    lower.includes('recus') || 
+    lower.includes('cancel') || 
+    lower.includes('perd') || 
+    lower.includes('reprov') ||
+    lower.includes('desenvolv') ||
+    lower.includes('enviad') ||
+    lower.includes('futur') ||
+    lower.includes('espera') ||
+    lower.includes('grafica') ||
+    lower.includes('contrato') ||
+    lower.includes('pedido')
+  ) {
+    return false;
+  }
+  
+  return (
+    lower === 'aprovada' ||
+    lower === 'aprovado' ||
+    lower === 'aprovadas' ||
+    lower === 'aprovados' ||
+    lower === 'ganho' ||
+    lower === 'ganha' ||
+    lower === 'fechado' ||
+    lower === 'fechada' ||
+    lower === 'concluido' ||
+    lower === 'concluida' ||
+    (lower.includes('aprovad') && !lower.includes('nao') && !lower.includes('para'))
+  );
+};

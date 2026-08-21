@@ -75,7 +75,8 @@ service cloud.firestore {
              (data.name is string) &&
              (data.name.size() >= 1 && data.name.size() <= 100) &&
              (data.order is int || data.order is float) &&
-             (data.order >= 0);
+             (data.order >= 0) &&
+             (!('color' in data) || data.color == null || (data.color is string && data.color.size() <= 50));
     }
 
     function isValidProposal(data) {
@@ -206,12 +207,12 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
                       isValidId(statusId) &&
                       incoming().keys().hasAll(['id', 'name', 'order']) &&
-                      incoming().keys().size() == 3 &&
+                      incoming().keys().size() >= 3 && incoming().keys().size() <= 6 &&
                       isValidStatus(incoming());
       allow update: if isSignedIn() &&
                       isValidId(statusId) &&
                       incoming().keys().hasAll(['id', 'name', 'order']) &&
-                      incoming().keys().size() == 3 &&
+                      incoming().keys().size() >= 3 && incoming().keys().size() <= 6 &&
                       isValidStatus(incoming());
       allow delete: if isSignedIn();
     }

@@ -136,6 +136,10 @@
         "order": {
           "type": "integer",
           "description": "Ordem de exibição da coluna"
+        },
+        "color": {
+          "type": "string",
+          "description": "Identificador de cor ou código da raia no Kanban"
         }
       },
       "required": ["id", "name", "order"]

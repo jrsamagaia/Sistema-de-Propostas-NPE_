@@ -16,10 +16,14 @@ import {
   BookOpen,
   Users,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   LogOut
 } from 'lucide-react';
 
-import { Cost, Rate, Supply, Process, Status, Proposal, Lead, IntegrationSetting } from './types';
+import { Cost, Rate, Supply, Process, Status, Proposal, Lead, IntegrationSetting, isApprovedStatusName } from './types';
 
 // Import subcomponents
 import Dashboard from './components/Dashboard';
@@ -90,10 +94,12 @@ const initialProcesses: Process[] = [
 ];
 
 const initialStatuses: Status[] = [
-  { id: 1, name: 'Em desenvolvimento', order: 1 },
-  { id: 2, name: 'Enviada para aprovação', order: 2 },
-  { id: 3, name: 'Não Aprovada', order: 3 },
-  { id: 4, name: 'Aprovada', order: 4 }
+  { id: 1, name: 'Em desenvolvimento', order: 1, color: 'blue-light' },
+  { id: 2, name: 'Enviada para aprovação', order: 2, color: 'green-light' },
+  { id: 3, name: 'Aprovada', order: 3, color: 'green-dark' },
+  { id: 4, name: 'Contrato/Pedido Gráfica', order: 4, color: 'orange-dark' },
+  { id: 5, name: 'Contato Futuro', order: 5, color: 'blue-dark' },
+  { id: 6, name: 'Não aprovada', order: 6, color: 'red' }
 ];
 
 interface NavItemProps {
@@ -101,31 +107,43 @@ interface NavItemProps {
   label: string;
   active: boolean;
   onClick: () => void;
+  collapsed?: boolean;
 }
 
-function NavItem({ icon, label, active, onClick }: NavItemProps) {
+function NavItem({ icon, label, active, onClick, collapsed }: NavItemProps) {
   return (
     <button 
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-6 py-1.5 text-sm transition-colors border-l-4 cursor-pointer text-left ${
+      title={label}
+      className={`w-full flex items-center ${
+        collapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-6 py-1.5'
+      } text-sm transition-colors border-l-4 cursor-pointer text-left ${
         active 
-          ? 'bg-slate-800 border-amber-500 text-white font-medium' 
+          ? 'bg-slate-800 border-amber-500 text-white font-medium shadow-inner' 
           : 'border-transparent text-slate-400 hover:bg-slate-800 hover:text-slate-200'
       }`}
     >
-      {icon}
-      {label}
+      <span className="shrink-0 flex items-center justify-center">{icon}</span>
+      {!collapsed && <span className="truncate">{label}</span>}
     </button>
   );
 }
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('kanban'); 
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isPropostasMenuOpen, setIsPropostasMenuOpen] = useState(true);
   const [notification, setNotification] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
+
+  // Auto-collapse sidebar when Kanban Funil is active for maximal screen real estate
+  useEffect(() => {
+    if (activeTab === 'kanban') {
+      setIsSidebarCollapsed(true);
+    }
+  }, [activeTab]);
 
   // Auto-expand menu when proposal tabs are active
   useEffect(() => {
@@ -310,13 +328,13 @@ export default function App() {
   const updateProposalStatus = async (id: number, newStatus: string, approvedValue?: number, approvedPaymentMethod?: string, approvedInstallmentsDetails?: string, approvedDate?: string) => {
     const prop = proposals.find(p => p.id === id);
     if (prop) {
-      const isApproved = newStatus.toLowerCase().includes('aprovad');
+      const isApproved = isApprovedStatusName(newStatus);
       const updatedProp = { 
         ...prop, 
         status: newStatus,
-        approvedValue: approvedValue !== undefined ? approvedValue : prop.approvedValue,
-        approvedPaymentMethod: approvedPaymentMethod !== undefined ? approvedPaymentMethod : prop.approvedPaymentMethod,
-        approvedInstallmentsDetails: approvedInstallmentsDetails !== undefined ? approvedInstallmentsDetails : prop.approvedInstallmentsDetails,
+        approvedValue: isApproved ? (approvedValue !== undefined ? approvedValue : prop.approvedValue) : prop.approvedValue,
+        approvedPaymentMethod: isApproved ? (approvedPaymentMethod !== undefined ? approvedPaymentMethod : prop.approvedPaymentMethod) : prop.approvedPaymentMethod,
+        approvedInstallmentsDetails: isApproved ? (approvedInstallmentsDetails !== undefined ? approvedInstallmentsDetails : prop.approvedInstallmentsDetails) : prop.approvedInstallmentsDetails,
         approvedDate: isApproved 
           ? (approvedDate || prop.approvedDate || new Date().toLocaleDateString('pt-BR'))
           : undefined
@@ -327,9 +345,11 @@ export default function App() {
 
   const updateStatusName = async (oldName: string, newName: string, statusObj: Status) => {
     await saveToDb('statuses', { ...statusObj, name: newName });
-    const propsToUpdate = proposals.filter(p => p.status === oldName);
-    for (const p of propsToUpdate) {
-      await saveToDb('proposals', { ...p, status: newName });
+    if (oldName !== newName) {
+      const propsToUpdate = proposals.filter(p => p.status === oldName);
+      for (const p of propsToUpdate) {
+        await saveToDb('proposals', { ...p, status: newName });
+      }
     }
   };
 
@@ -456,111 +476,144 @@ export default function App() {
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans relative">
       
       {/* Sidebar - Matching ConnectFlow design style (Desktop only) */}
-      <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl z-20 hidden md:flex shrink-0">
-        <div className="p-4 border-b border-slate-800 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-indigo-500 rounded flex items-center justify-center font-bold text-white text-base shadow-sm">
+      <aside className={`${isSidebarCollapsed ? 'w-16' : 'w-64'} bg-slate-900 text-slate-300 flex flex-col shadow-xl z-20 hidden md:flex shrink-0 transition-all duration-300 ease-in-out`}>
+        <div className={`p-3 border-b border-slate-800 flex-shrink-0 flex items-center ${isSidebarCollapsed ? 'justify-center flex-col gap-2' : 'justify-between'}`}>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center font-bold text-white text-base shadow-sm shrink-0">
               N
             </div>
-            <span className="text-white font-semibold tracking-tight text-base">Editora NPE</span>
+            {!isSidebarCollapsed && (
+              <span className="text-white font-semibold tracking-tight text-base truncate">Editora NPE</span>
+            )}
           </div>
+          
+          <button
+            type="button"
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+            title={isSidebarCollapsed ? "Expandir menu lateral" : "Recolher menu lateral (apenas ícones)"}
+          >
+            {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
         </div>
 
         <nav className="flex-1 py-1.5 space-y-0.5 overflow-y-auto">
-          <div className="px-6 py-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Painel de Vendas</div>
-          <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
-          <NavItem icon={<Kanban size={18} />} label="Kanban (Funil)" active={activeTab === 'kanban'} onClick={() => setActiveTab('kanban')} />
-          <NavItem icon={<Users size={18} />} label="Contatos e Leads" active={activeTab === 'leads'} onClick={() => setActiveTab('leads')} />
+          {!isSidebarCollapsed && (
+            <div className="px-6 py-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Painel de Vendas</div>
+          )}
+          <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} collapsed={isSidebarCollapsed} />
+          <NavItem icon={<Kanban size={18} />} label="Kanban (Funil)" active={activeTab === 'kanban'} onClick={() => setActiveTab('kanban')} collapsed={isSidebarCollapsed} />
+          <NavItem icon={<Users size={18} />} label="Contatos e Leads" active={activeTab === 'leads'} onClick={() => setActiveTab('leads')} collapsed={isSidebarCollapsed} />
           
-          <div className="px-6 py-1 pt-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Parâmetros e Custos</div>
-          <NavItem icon={<Calculator size={18} />} label="Custos Fixos e Taxas" active={activeTab === 'custos'} onClick={() => setActiveTab('custos')} />
-          <NavItem icon={<Package size={18} />} label="Insumos e Serviços" active={activeTab === 'insumos'} onClick={() => setActiveTab('insumos')} />
-          <NavItem icon={<Clock size={18} />} label="Tempos de Processo" active={activeTab === 'tempos'} onClick={() => setActiveTab('tempos')} />
+          {!isSidebarCollapsed ? (
+            <div className="px-6 py-1 pt-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Parâmetros e Custos</div>
+          ) : (
+            <div className="my-1 border-t border-slate-800/80 mx-2"></div>
+          )}
+          <NavItem icon={<Calculator size={18} />} label="Custos Fixos e Taxas" active={activeTab === 'custos'} onClick={() => setActiveTab('custos')} collapsed={isSidebarCollapsed} />
+          <NavItem icon={<Package size={18} />} label="Insumos e Serviços" active={activeTab === 'insumos'} onClick={() => setActiveTab('insumos')} collapsed={isSidebarCollapsed} />
+          <NavItem icon={<Clock size={18} />} label="Tempos de Processo" active={activeTab === 'tempos'} onClick={() => setActiveTab('tempos')} collapsed={isSidebarCollapsed} />
           
-          <div className="px-6 py-1 pt-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Operações</div>
-          <NavItem icon={<BookOpen size={18} />} label="Calculadora de Laudas" active={activeTab === 'laudas'} onClick={() => setActiveTab('laudas')} />
+          {!isSidebarCollapsed ? (
+            <div className="px-6 py-1 pt-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Operações</div>
+          ) : (
+            <div className="my-1 border-t border-slate-800/80 mx-2"></div>
+          )}
+          <NavItem icon={<BookOpen size={18} />} label="Calculadora de Laudas" active={activeTab === 'laudas'} onClick={() => setActiveTab('laudas')} collapsed={isSidebarCollapsed} />
           
           {/* Submenu de Orçamentos e Propostas */}
-          <div className="space-y-0.5">
-            <button 
-              onClick={() => setIsPropostasMenuOpen(!isPropostasMenuOpen)}
-              className={`w-full flex items-center justify-between px-6 py-1.5 text-sm transition-colors border-l-4 cursor-pointer text-left ${
-                (activeTab === 'propostas' || activeTab === 'propostas-aprovadas') 
-                  ? 'bg-slate-800 border-amber-500 text-white font-medium' 
-                  : 'border-transparent text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <FileText size={18} />
-                <span>Orçamentos & Propostas</span>
-              </div>
-              <ChevronDown 
-                size={14} 
-                className={`transform transition-transform duration-200 text-slate-400 ${isPropostasMenuOpen ? 'rotate-180' : ''}`} 
-              />
-            </button>
-            {isPropostasMenuOpen && (
-              <div className="pl-6 bg-slate-900/40 animate-fade-in flex flex-col space-y-0.5">
-                <button 
-                  onClick={() => setActiveTab('propostas')}
-                  className={`w-full flex items-center gap-3 py-1.5 px-6 text-xs transition-all border-l-2 cursor-pointer text-left ${
-                    activeTab === 'propostas' 
-                      ? 'border-amber-500 text-white font-semibold bg-slate-800/30' 
-                      : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/20'
-                  }`}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
-                  <span>Propostas em Andamento</span>
-                </button>
-                <button 
-                  onClick={() => setActiveTab('propostas-aprovadas')}
-                  className={`w-full flex items-center gap-3 py-1.5 px-6 text-xs transition-all border-l-2 cursor-pointer text-left ${
-                    activeTab === 'propostas-aprovadas' 
-                      ? 'border-amber-500 text-white font-semibold bg-slate-800/30' 
-                      : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/20'
-                  }`}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  <span>Propostas Aprovadas</span>
-                </button>
-              </div>
-            )}
-          </div>
+          {isSidebarCollapsed ? (
+            <NavItem 
+              icon={<FileText size={18} />} 
+              label="Orçamentos & Propostas" 
+              active={activeTab === 'propostas' || activeTab === 'propostas-aprovadas'} 
+              onClick={() => setActiveTab('propostas')} 
+              collapsed={true} 
+            />
+          ) : (
+            <div className="space-y-0.5">
+              <button 
+                onClick={() => setIsPropostasMenuOpen(!isPropostasMenuOpen)}
+                className={`w-full flex items-center justify-between px-6 py-1.5 text-sm transition-colors border-l-4 cursor-pointer text-left ${
+                  (activeTab === 'propostas' || activeTab === 'propostas-aprovadas') 
+                    ? 'bg-slate-800 border-amber-500 text-white font-medium' 
+                    : 'border-transparent text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <FileText size={18} />
+                  <span>Orçamentos & Propostas</span>
+                </div>
+                <ChevronDown 
+                  size={14} 
+                  className={`transform transition-transform duration-200 text-slate-400 ${isPropostasMenuOpen ? 'rotate-180' : ''}`} 
+                />
+              </button>
+              {isPropostasMenuOpen && (
+                <div className="pl-6 bg-slate-900/40 animate-fade-in flex flex-col space-y-0.5">
+                  <button 
+                    onClick={() => setActiveTab('propostas')}
+                    className={`w-full flex items-center gap-3 py-1.5 px-6 text-xs transition-all border-l-2 cursor-pointer text-left ${
+                      activeTab === 'propostas' 
+                        ? 'border-amber-500 text-white font-semibold bg-slate-800/30' 
+                        : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/20'
+                    }`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                    <span>Propostas em Andamento</span>
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('propostas-aprovadas')}
+                    className={`w-full flex items-center gap-3 py-1.5 px-6 text-xs transition-all border-l-2 cursor-pointer text-left ${
+                      activeTab === 'propostas-aprovadas' 
+                        ? 'border-amber-500 text-white font-semibold bg-slate-800/30' 
+                        : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/20'
+                    }`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    <span>Propostas Aprovadas</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
-          <NavItem icon={<Settings size={18} />} label="Backup e Dados" active={activeTab === 'config'} onClick={() => setActiveTab('config')} />
+          <NavItem icon={<Settings size={18} />} label="Backup e Dados" active={activeTab === 'config'} onClick={() => setActiveTab('config')} collapsed={isSidebarCollapsed} />
         </nav>
 
         {/* User Profile & Logout at Bottom of Sidebar */}
-        <div className="p-2.5 mt-auto bg-slate-800/60 m-3 rounded-xl border border-slate-750/70 shrink-0 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5 min-w-0">
+        <div className={`p-2.5 mt-auto bg-slate-800/60 m-2 rounded-xl border border-slate-750/70 shrink-0 flex items-center ${isSidebarCollapsed ? 'flex-col gap-2 justify-center' : 'justify-between gap-2'}`}>
+          <div className="flex items-center gap-2.5 min-w-0" title={currentUser?.displayName || currentUser?.email || ''}>
             {currentUser?.photoURL ? (
               <img 
                 src={currentUser.photoURL} 
                 alt={currentUser.displayName || "User"} 
-                className="w-8 h-8 rounded-full border border-slate-700 shrink-0 object-cover" 
+                className="w-7 h-7 rounded-full border border-slate-700 shrink-0 object-cover" 
                 referrerPolicy="no-referrer" 
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-indigo-600 border border-indigo-500/50 flex items-center justify-center font-bold text-white text-xs shrink-0">
+              <div className="w-7 h-7 rounded-full bg-indigo-600 border border-indigo-500/50 flex items-center justify-center font-bold text-white text-xs shrink-0">
                 {(currentUser?.displayName || currentUser?.email || "U").charAt(0).toUpperCase()}
               </div>
             )}
-            <div className="flex flex-col min-w-0">
-              <span className="text-xs font-semibold text-slate-200 truncate leading-tight" title={currentUser?.displayName || currentUser?.email || ''}>
-                {currentUser?.displayName || currentUser?.email}
-              </span>
-              <span className="text-[10px] text-slate-400 truncate leading-tight">
-                Editora NPE
-              </span>
-            </div>
+            {!isSidebarCollapsed && (
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs font-semibold text-slate-200 truncate leading-tight">
+                  {currentUser?.displayName || currentUser?.email}
+                </span>
+                <span className="text-[10px] text-slate-400 truncate leading-tight">
+                  Editora NPE
+                </span>
+              </div>
+            )}
           </div>
           <button 
             onClick={() => signOut(auth)}
-            className="text-[11px] text-red-400 hover:text-red-300 hover:bg-red-950/40 px-2 py-1 rounded-md font-bold tracking-wider transition-colors cursor-pointer shrink-0 uppercase flex items-center gap-1"
+            className={`text-red-400 hover:text-red-300 hover:bg-red-950/40 rounded-md font-bold tracking-wider transition-colors cursor-pointer shrink-0 uppercase flex items-center justify-center gap-1 ${isSidebarCollapsed ? 'p-1 text-xs' : 'text-[11px] px-2 py-1'}`}
             title="Sair do sistema"
           >
             <LogOut size={13} />
-            <span>Sair</span>
+            {!isSidebarCollapsed && <span>Sair</span>}
           </button>
         </div>
       </aside>
@@ -737,19 +790,29 @@ export default function App() {
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         
         {/* Top Header - Compact, High-Efficiency Navigation */}
-        <header className="h-12 bg-white border-b border-slate-200 hidden md:flex items-center justify-between px-5 shrink-0 z-10 shadow-xs">
-          <h1 className="text-sm md:text-base font-bold text-slate-800 tracking-tight">
-            {activeTab === 'dashboard' && 'Visão Geral'}
-            {activeTab === 'kanban' && 'Painel de Negócios (Funil)'}
-            {activeTab === 'leads' && 'Contatos e Leads'}
-            {activeTab === 'custos' && 'Despesas & Precificação'}
-            {activeTab === 'insumos' && 'Catálogo Geral de Insumos'}
-            {activeTab === 'tempos' && 'Tempo de Processos'}
-            {activeTab === 'laudas' && 'Calculadora de Laudas'}
-            {activeTab === 'propostas' && 'Propostas em Andamento'}
-            {activeTab === 'propostas-aprovadas' && 'Propostas Aprovadas'}
-            {activeTab === 'config' && 'Backup e Dados'}
-          </h1>
+        <header className="h-12 bg-white border-b border-slate-200 hidden md:flex items-center justify-between px-4 shrink-0 z-10 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer flex items-center justify-center border border-slate-200 shadow-2xs"
+              title={isSidebarCollapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+            >
+              {isSidebarCollapsed ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
+            </button>
+            <h1 className="text-sm md:text-base font-bold text-slate-800 tracking-tight">
+              {activeTab === 'dashboard' && 'Visão Geral'}
+              {activeTab === 'kanban' && 'Painel de Negócios (Funil)'}
+              {activeTab === 'leads' && 'Contatos e Leads'}
+              {activeTab === 'custos' && 'Despesas & Precificação'}
+              {activeTab === 'insumos' && 'Catálogo Geral de Insumos'}
+              {activeTab === 'tempos' && 'Tempo de Processos'}
+              {activeTab === 'laudas' && 'Calculadora de Laudas'}
+              {activeTab === 'propostas' && 'Propostas em Andamento'}
+              {activeTab === 'propostas-aprovadas' && 'Propostas Aprovadas'}
+              {activeTab === 'config' && 'Backup e Dados'}
+            </h1>
+          </div>
           
           <button
             onClick={() => {
