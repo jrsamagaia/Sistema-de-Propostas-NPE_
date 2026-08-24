@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Pencil, Trash2, Plus, CheckCircle, X, Search, Layers, ChevronDown, ChevronRight, Copy, Archive, RotateCcw, Check } from 'lucide-react';
 import { Supply, SupplyVariation } from '../types';
 import AutocompleteSelect from './AutocompleteSelect';
+import { ceil2, formatMoney } from '../utils/math';
 
 interface InsumosProps {
   supplies: Supply[];
@@ -57,8 +58,8 @@ export default function Insumos({
       : 50;
     const defaultCost = variations.length > 0 
       ? variations[variations.length - 1].cost 
-      : (parseFloat(cost) || 0.50);
-    const defaultMult = parseFloat(multiplier) || 1.60;
+      : ceil2(parseFloat(cost) || 0.50);
+    const defaultMult = ceil2(parseFloat(multiplier) || 1.60);
 
     const newVar: SupplyVariation = {
       id: Date.now().toString() + Math.random().toString().slice(2, 6),
@@ -76,15 +77,19 @@ export default function Insumos({
 
   const handleUpdateVariation = (index: number, field: keyof SupplyVariation, value: any) => {
     const updated = [...variations];
+    let finalValue = value;
+    if (field === 'cost' || field === 'multiplier') {
+      finalValue = ceil2(value);
+    }
     updated[index] = {
       ...updated[index],
-      [field]: value,
+      [field]: finalValue,
     };
     setVariations(updated);
   };
 
   const handleApplyPresetVariations = () => {
-    const baseM = parseFloat(multiplier) || 1.60;
+    const baseM = ceil2(parseFloat(multiplier) || 1.60);
     const now = Date.now();
     const preset: SupplyVariation[] = [
       { id: `${now}_var_50`, quantity: 50, unit: unit || 'unidade', cost: 0.73, multiplier: baseM },
@@ -101,11 +106,11 @@ export default function Insumos({
     e.preventDefault();
     if (!desc || !unit) return;
     
-    const parsedCost = parseFloat(cost) || (variations.length > 0 ? variations[0].cost : 0);
+    const parsedCost = ceil2(parseFloat(cost) || (variations.length > 0 ? variations[0].cost : 0));
     if (!parsedCost && (!hasVariations || variations.length === 0)) return;
 
-    const parsedMultiplier = type === 'produto' ? (parseFloat(multiplier) || 1.0) : 1.0;
-    const parsedShippingCost = type === 'produto' && shippingCost ? parseFloat(shippingCost) : undefined;
+    const parsedMultiplier = type === 'produto' ? ceil2(parseFloat(multiplier) || 1.0) : 1.0;
+    const parsedShippingCost = type === 'produto' && shippingCost ? ceil2(parseFloat(shippingCost)) : undefined;
     const parsedShippingQty = type === 'produto' && shippingQty ? parseInt(shippingQty, 10) : undefined;
 
     const currentSupply = editingId ? supplies.find(s => s.id === editingId) : null;
@@ -121,7 +126,11 @@ export default function Insumos({
       shippingCost: parsedShippingCost,
       shippingQty: parsedShippingQty,
       hasVariations: type === 'produto' ? hasVariations : false,
-      variations: (type === 'produto' && hasVariations) ? variations : [],
+      variations: (type === 'produto' && hasVariations) ? variations.map(v => ({
+        ...v,
+        cost: ceil2(v.cost),
+        multiplier: v.multiplier !== undefined ? ceil2(v.multiplier) : undefined
+      })) : [],
       createdAt: createdAt,
       active: currentSupply ? (currentSupply.active !== undefined ? currentSupply.active : true) : true
     };
@@ -387,9 +396,9 @@ export default function Insumos({
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                           {variations.map((v, vIdx) => {
-                            const vMult = v.multiplier !== undefined ? v.multiplier : (parseFloat(multiplier) || 1.0);
-                            const vUnitCostCalc = v.cost * vMult;
-                            const vTotalCalc = vUnitCostCalc * (v.quantity || 1);
+                            const vMult = v.multiplier !== undefined ? ceil2(v.multiplier) : ceil2(parseFloat(multiplier) || 1.0);
+                            const vUnitCostCalc = ceil2(v.cost * vMult);
+                            const vTotalCalc = ceil2(vUnitCostCalc * (v.quantity || 1));
 
                             return (
                               <tr key={v.id || vIdx} className="hover:bg-indigo-50/30 transition-colors">
@@ -644,10 +653,10 @@ export default function Insumos({
                 })
                 .map((s, index) => {
                   const isProduct = s.type === 'produto';
-                  const mult = isProduct ? (s.multiplier || 1.0) : 1.0;
-                  const shippingCostVal = isProduct && s.shippingCost !== undefined ? s.shippingCost : 0;
+                  const mult = isProduct ? ceil2(s.multiplier || 1.0) : 1.0;
+                  const shippingCostVal = isProduct && s.shippingCost !== undefined ? ceil2(s.shippingCost) : 0;
                   const shippingQtyVal = isProduct && s.shippingQty !== undefined ? s.shippingQty : 0;
-                  const calculatedCost = (s.cost * mult) + (shippingQtyVal > 0 ? (shippingCostVal / shippingQtyVal) : 0);
+                  const calculatedCost = ceil2((s.cost * mult) + (shippingQtyVal > 0 ? (shippingCostVal / shippingQtyVal) : 0));
                   const hasVars = isProduct && s.hasVariations && s.variations && s.variations.length > 0;
                   const isExpanded = expandedSupplyIds.includes(s.id);
                   
@@ -659,7 +668,7 @@ export default function Insumos({
                         <td className="p-4 text-center">
                           <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs uppercase tracking-wider font-semibold">{s.unit}</span>
                         </td>
-                        <td className="p-4 text-right font-mono text-slate-500">R$ {s.cost.toFixed(2)}</td>
+                        <td className="p-4 text-right font-mono text-slate-500">R$ {ceil2(s.cost).toFixed(2)}</td>
                         <td className="p-4 text-center">
                           <div className="flex items-center justify-center gap-2">
                             <button onClick={() => handleEdit(s)} className="text-blue-500 hover:text-blue-700 transition-colors cursor-pointer p-1" title="Editar"><Pencil size={17}/></button>
@@ -717,17 +726,17 @@ export default function Insumos({
                           <td className="p-4 text-right font-mono text-slate-500">
                             {hasVars ? (
                               <span className="text-xs text-slate-600">
-                                {Math.min(...s.variations!.map(v => v.cost)).toFixed(2)} ~ {Math.max(...s.variations!.map(v => v.cost)).toFixed(2)}
+                                {ceil2(Math.min(...s.variations!.map(v => v.cost))).toFixed(2)} ~ {ceil2(Math.max(...s.variations!.map(v => v.cost))).toFixed(2)}
                               </span>
                             ) : (
-                              `R$ ${s.cost.toFixed(2)}`
+                              `R$ ${ceil2(s.cost).toFixed(2)}`
                             )}
                           </td>
                           <td className="p-4 text-center font-mono font-medium text-slate-600">
                             <span className="text-indigo-600 font-bold">{mult.toFixed(2)}x</span>
                           </td>
                           <td className="p-4 text-right font-mono text-slate-500">
-                            {s.shippingCost !== undefined ? `R$ ${s.shippingCost.toFixed(2)}` : '-'}
+                            {s.shippingCost !== undefined ? `R$ ${ceil2(s.shippingCost).toFixed(2)}` : '-'}
                           </td>
                           <td className="p-4 text-center font-mono text-slate-500">
                             {hasVars ? (
@@ -741,7 +750,7 @@ export default function Insumos({
                           <td className="p-4 text-right font-mono text-emerald-600 font-bold">
                             {hasVars ? (
                               <span className="text-xs">
-                                A partir de R$ {(Math.min(...s.variations!.map(v => v.cost * (v.multiplier || mult)))).toFixed(2)}
+                                A partir de R$ {ceil2(Math.min(...s.variations!.map(v => v.cost * (v.multiplier !== undefined ? v.multiplier : mult)))).toFixed(2)}
                               </span>
                             ) : (
                               `R$ ${calculatedCost.toFixed(2)}`
@@ -756,7 +765,7 @@ export default function Insumos({
                                 title="Desmarque a caixa para inativar este produto"
                               >
                                 <input 
-                                  type="checkbox"
+                                  type="checkbox" 
                                   checked={s.active !== false}
                                   onChange={(e) => handleToggleActive(s, e)}
                                   className="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
@@ -796,9 +805,9 @@ export default function Insumos({
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                       {s.variations!.map((v, vIndex) => {
-                                        const vMult = v.multiplier !== undefined ? v.multiplier : mult;
-                                        const vUnitCalc = v.cost * vMult;
-                                        const vTotal = vUnitCalc * (v.quantity || 1);
+                                        const vMult = v.multiplier !== undefined ? ceil2(v.multiplier) : mult;
+                                        const vUnitCalc = ceil2(v.cost * vMult);
+                                        const vTotal = ceil2(vUnitCalc * (v.quantity || 1));
 
                                         return (
                                           <tr key={v.id || vIndex} className="hover:bg-slate-50/80">
@@ -806,7 +815,7 @@ export default function Insumos({
                                               {vIndex + 1} - {s.description} ({v.quantity} {v.unit || s.unit || 'unidades'})
                                             </td>
                                             <td className="p-2 text-center text-slate-500 uppercase">{v.unit || s.unit}</td>
-                                            <td className="p-2 text-right font-mono text-slate-600">R$ {v.cost.toFixed(2)}</td>
+                                            <td className="p-2 text-right font-mono text-slate-600">R$ {ceil2(v.cost).toFixed(2)}</td>
                                             <td className="p-2 text-center font-mono text-indigo-600 font-semibold">{vMult.toFixed(2)}x</td>
                                             <td className="p-2 text-center font-mono font-bold text-slate-800">{v.quantity}</td>
                                             <td className="p-2 text-right font-mono text-slate-700 font-semibold">R$ {vUnitCalc.toFixed(2)}</td>
@@ -867,7 +876,7 @@ export default function Insumos({
                           <td className="p-4 text-center">
                             <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded text-xs uppercase font-semibold">{s.unit}</span>
                           </td>
-                          <td className="p-4 text-right font-mono text-slate-500">R$ {s.cost.toFixed(2)}</td>
+                          <td className="p-4 text-right font-mono text-slate-500">R$ {ceil2(s.cost).toFixed(2)}</td>
                           <td className="p-4 text-center font-mono text-xs text-slate-500">
                             {isProduct ? `${mult.toFixed(2)}x` : '-'}
                           </td>
@@ -925,9 +934,9 @@ export default function Insumos({
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                       {s.variations!.map((v, vIndex) => {
-                                        const vMult = v.multiplier !== undefined ? v.multiplier : mult;
-                                        const vUnitCalc = v.cost * vMult;
-                                        const vTotal = vUnitCalc * (v.quantity || 1);
+                                        const vMult = v.multiplier !== undefined ? ceil2(v.multiplier) : mult;
+                                        const vUnitCalc = ceil2(v.cost * vMult);
+                                        const vTotal = ceil2(vUnitCalc * (v.quantity || 1));
 
                                         return (
                                           <tr key={v.id || vIndex} className="hover:bg-slate-50/80">
@@ -935,7 +944,7 @@ export default function Insumos({
                                               {vIndex + 1} - {s.description} ({v.quantity} {v.unit || s.unit || 'unidades'})
                                             </td>
                                             <td className="p-2 text-center text-slate-500 uppercase">{v.unit || s.unit}</td>
-                                            <td className="p-2 text-right font-mono text-slate-600">R$ {v.cost.toFixed(2)}</td>
+                                            <td className="p-2 text-right font-mono text-slate-600">R$ {ceil2(v.cost).toFixed(2)}</td>
                                             <td className="p-2 text-center font-mono text-indigo-600 font-semibold">{vMult.toFixed(2)}x</td>
                                             <td className="p-2 text-center font-mono font-bold text-slate-800">{v.quantity}</td>
                                             <td className="p-2 text-right font-mono text-slate-700 font-semibold">R$ {vUnitCalc.toFixed(2)}</td>

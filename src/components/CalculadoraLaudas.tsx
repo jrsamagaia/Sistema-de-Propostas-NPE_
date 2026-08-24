@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BookOpen, HelpCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import AutocompleteSelect from './AutocompleteSelect';
+import { ceil2 } from '../utils/math';
 
 export default function CalculadoraLaudas() {
   const [numCaracStr, setNumCaracStr] = useState('');
@@ -22,7 +23,7 @@ export default function CalculadoraLaudas() {
     }
 
     const total = numCarac / size;
-    const arred = Math.round(total * 100) / 100;
+    const arred = ceil2(total);
     
     setResultado({
       value: arred,

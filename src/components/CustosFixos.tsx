@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CheckCircle, Plus, X, Pencil, Trash2 } from 'lucide-react';
 import { Cost, Rate } from '../types';
+import { ceil2, formatMoney } from '../utils/math';
 
 interface CustosFixosProps {
   costs: Cost[];
@@ -33,12 +34,13 @@ export default function CustosFixos({
     e.preventDefault();
     if (!newCostDesc || !newCostValue) return;
     
+    const parsedVal = ceil2(parseFloat(newCostValue));
     if (editingCostId) {
-      saveCost({ id: editingCostId, description: newCostDesc, value: parseFloat(newCostValue) });
+      saveCost({ id: editingCostId, description: newCostDesc, value: parsedVal });
       setEditingCostId(null);
       showNotification('Custo fixo atualizado!');
     } else {
-      saveCost({ id: Date.now(), description: newCostDesc, value: parseFloat(newCostValue) });
+      saveCost({ id: Date.now(), description: newCostDesc, value: parsedVal });
       showNotification('Custo fixo adicionado!');
     }
     setNewCostDesc(''); 
@@ -49,12 +51,13 @@ export default function CustosFixos({
     e.preventDefault();
     if (!newRateDesc || !newRateValue) return;
     
+    const parsedPct = ceil2(parseFloat(newRateValue));
     if (editingRateId) {
-      saveRate({ id: editingRateId, description: newRateDesc, percentage: parseFloat(newRateValue) });
+      saveRate({ id: editingRateId, description: newRateDesc, percentage: parsedPct });
       setEditingRateId(null);
       showNotification('Taxa ou Margem atualizada!');
     } else {
-      saveRate({ id: Date.now(), description: newRateDesc, percentage: parseFloat(newRateValue) });
+      saveRate({ id: Date.now(), description: newRateDesc, percentage: parsedPct });
       showNotification('Taxa ou Margem adicionada!');
     }
     setNewRateDesc(''); 
@@ -100,7 +103,7 @@ export default function CustosFixos({
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-sm font-bold text-slate-800 tracking-tight">Despesas Fixas Mensais</h3>
             <span className="bg-rose-50 text-rose-700 border border-rose-100 px-2.5 py-0.5 rounded-full text-xs font-bold">
-              Total: R$ {totalCosts.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              Total: {formatMoney(totalCosts)}
             </span>
           </div>
           
@@ -154,7 +157,7 @@ export default function CustosFixos({
                 {costs.map(c => (
                   <tr key={c.id} className="border-b border-slate-150 hover:bg-slate-50/50">
                     <td className="p-3 font-medium text-slate-700">{c.description}</td>
-                    <td className="p-3 text-right font-mono text-slate-900">R$ {c.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-3 text-right font-mono text-slate-900">{formatMoney(c.value)}</td>
                     <td className="p-3 text-center flex justify-center gap-2">
                       <button onClick={() => handleEditCost(c)} className="text-indigo-600 hover:text-indigo-800 cursor-pointer p-1" title="Editar"><Pencil size={15}/></button>
                       <button onClick={() => removeCost(c.id)} className="text-red-500 hover:text-red-700 cursor-pointer p-1" title="Excluir"><Trash2 size={15}/></button>
@@ -175,7 +178,7 @@ export default function CustosFixos({
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-base font-bold text-slate-800 tracking-tight">Composição do Preço (%)</h3>
             <span className="bg-indigo-50 text-indigo-700 border border-indigo-100 px-3 py-1 rounded-full text-xs font-bold">
-              Total: {totalRates.toFixed(2)}%
+              Total: {ceil2(totalRates).toFixed(2)}%
             </span>
           </div>
 
@@ -229,7 +232,7 @@ export default function CustosFixos({
                 {rates.map(r => (
                   <tr key={r.id} className="border-b border-slate-150 hover:bg-slate-50/50">
                     <td className="p-3 font-medium text-slate-700">{r.description}</td>
-                    <td className="p-3 text-right font-mono text-slate-900 font-semibold">{r.percentage.toFixed(2)}%</td>
+                    <td className="p-3 text-right font-mono text-slate-900 font-semibold">{ceil2(r.percentage).toFixed(2)}%</td>
                     <td className="p-3 text-center flex justify-center gap-2">
                       <button onClick={() => handleEditRate(r)} className="text-indigo-600 hover:text-indigo-800 cursor-pointer p-1" title="Editar"><Pencil size={15}/></button>
                       <button onClick={() => removeRate(r.id)} className="text-red-500 hover:text-red-700 cursor-pointer p-1" title="Excluir"><Trash2 size={15}/></button>

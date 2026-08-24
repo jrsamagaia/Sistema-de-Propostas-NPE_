@@ -97,6 +97,8 @@ service cloud.firestore {
              (!('paymentEntryPercent' in data) || data.paymentEntryPercent == null || data.paymentEntryPercent is float || data.paymentEntryPercent is int) &&
              (!('paymentInstallments' in data) || data.paymentInstallments == null || data.paymentInstallments is int || data.paymentInstallments is float) &&
              (!('paymentInterestPercent' in data) || data.paymentInterestPercent == null || data.paymentInterestPercent is float || data.paymentInterestPercent is int) &&
+             (!('cardInstallmentOptions' in data) || data.cardInstallmentOptions == null || data.cardInstallmentOptions is list) &&
+             (!('paymentDirectTerms' in data) || data.paymentDirectTerms == null || data.paymentDirectTerms is string) &&
              (!('paymentCustomText' in data) || data.paymentCustomText == null || data.paymentCustomText is string) &&
              (!('validationDays' in data) || data.validationDays == null || data.validationDays is int || data.validationDays is float) &&
              (!('validityDate' in data) || data.validityDate == null || data.validityDate is string) &&
@@ -222,12 +224,12 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
                       isValidId(proposalId) &&
                       incoming().keys().hasAll(['id', 'name', 'date', 'items', 'totalCost', 'sellPrice', 'status']) &&
-                      incoming().keys().size() >= 7 && incoming().keys().size() <= 35 &&
+                      incoming().keys().size() >= 7 && incoming().keys().size() <= 40 &&
                       isValidProposal(incoming());
       allow update: if isSignedIn() &&
                       isValidId(proposalId) &&
                       incoming().keys().hasAll(['id', 'name', 'date', 'items', 'totalCost', 'sellPrice', 'status']) &&
-                      incoming().keys().size() >= 7 && incoming().keys().size() <= 35 &&
+                      incoming().keys().size() >= 7 && incoming().keys().size() <= 40 &&
                       isValidProposal(incoming());
       allow delete: if isSignedIn();
     }

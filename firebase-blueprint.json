@@ -234,6 +234,14 @@
           "type": "number",
           "description": "Percentual de juros aplicado"
         },
+        "cardInstallmentOptions": {
+          "type": "array",
+          "description": "Opções de parcelamento no cartão de crédito"
+        },
+        "paymentDirectTerms": {
+          "type": "string",
+          "description": "Condição de prazos em faturamento direto / PIX / boleto"
+        },
         "paymentCustomText": {
           "type": "string",
           "description": "Texto customizado de condições de pagamento"

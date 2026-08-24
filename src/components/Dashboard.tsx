@@ -9,6 +9,7 @@ import {
   FileStack
 } from 'lucide-react';
 import { Proposal } from '../types';
+import { ceil2, formatMoney } from '../utils/math';
 
 interface DashboardProps {
   proposals: Proposal[];
@@ -57,7 +58,7 @@ export default function Dashboard({
     return statusName.includes('desenvolvimento') || statusName.includes('novo') || statusName.includes('iníci');
   });
   const devCount = devProposals.length;
-  const devValue = devProposals.reduce((sum, p) => sum + (p.sellPrice || 0), 0);
+  const devValue = ceil2(devProposals.reduce((sum, p) => sum + (p.sellPrice || 0), 0));
 
   // 2. Em Aprovação
   const aprProposals = proposals.filter(p => {
@@ -65,7 +66,7 @@ export default function Dashboard({
     return statusName.includes('aprovação') || statusName.includes('enviad') || statusName.includes('análise');
   });
   const aprCount = aprProposals.length;
-  const aprValue = aprProposals.reduce((sum, p) => sum + (p.sellPrice || 0), 0);
+  const aprValue = ceil2(aprProposals.reduce((sum, p) => sum + (p.sellPrice || 0), 0));
 
   // 3. Não Aprovadas
   const naProposals = proposals.filter(p => {
@@ -73,7 +74,7 @@ export default function Dashboard({
     return statusName.includes('não') || statusName.includes('cancelad') || statusName.includes('perdid') || statusName.includes('recusad');
   });
   const naCount = naProposals.length;
-  const naValue = naProposals.reduce((sum, p) => sum + (p.sellPrice || 0), 0);
+  const naValue = ceil2(naProposals.reduce((sum, p) => sum + (p.sellPrice || 0), 0));
 
   // 4. Totais (Aprovadas apenas)
   const approvedProposals = proposals.filter(p => {
@@ -81,10 +82,10 @@ export default function Dashboard({
     return statusName.includes('aprovad') && !statusName.includes('não');
   });
   const approvedCount = approvedProposals.length;
-  const approvedValue = approvedProposals.reduce((sum, p) => sum + (p.approvedValue !== undefined ? p.approvedValue : p.sellPrice || 0), 0);
+  const approvedValue = ceil2(approvedProposals.reduce((sum, p) => sum + (p.approvedValue !== undefined ? p.approvedValue : p.sellPrice || 0), 0));
 
   const formatBRL = (val: number) => {
-    return `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return formatMoney(val);
   };
 
   return (
@@ -162,7 +163,7 @@ export default function Dashboard({
               <li>Custo Base da Produção: <span className="text-slate-800 font-mono">R$ 1.000,00</span></li>
               <li>Impostos + Taxas + Lucro Desejado: <span className="text-indigo-600 font-mono">{totalRatesPercent}%</span></li>
               <li>Fator Multiplicador Divisor: <span className="text-slate-800 font-mono">{(1 - (totalRatesPercent / 100)).toFixed(4)}</span></li>
-              <li>Preço Sugerido Final: <span className="text-emerald-600 font-semibold font-mono">R$ {(totalRatesPercent >= 100 ? 0 : 1000 / (1 - (totalRatesPercent / 100))).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></li>
+              <li>Preço Sugerido Final: <span className="text-emerald-600 font-semibold font-mono">{formatMoney(totalRatesPercent >= 100 ? 0 : 1000 / (1 - (totalRatesPercent / 100)))}</span></li>
             </ul>
           </div>
         </div>

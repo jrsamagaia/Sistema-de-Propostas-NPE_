@@ -3,6 +3,7 @@ import { X, Printer, FileText, Send, Loader2, Mail } from 'lucide-react';
 import { Proposal, IntegrationSetting, CardInstallmentOption, getInstallmentScheduleText } from '../types';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { ceil2, formatCurrency, formatMoney } from '../utils/math';
 
 // Helper function to wait for all images inside an element to load
 const waitForImages = (element: HTMLElement): Promise<void> => {
@@ -219,10 +220,10 @@ export default function PropostaPDFModal({
   const hasProducts = productItems.length > 0;
   const hasServices = serviceItems.length > 0;
 
-  const totalServicesCost = serviceItems.reduce((acc, item) => acc + (item.cost * item.qty), 0);
+  const totalServicesCost = ceil2(serviceItems.reduce((acc, item) => acc + ceil2(item.cost * item.qty), 0));
   const markupMultiplier = proposal.markupMultiplier !== undefined 
-    ? proposal.markupMultiplier 
-    : (proposal.sellPrice && proposal.totalCost ? (proposal.sellPrice / proposal.totalCost) : 1);
+    ? ceil2(proposal.markupMultiplier) 
+    : (proposal.sellPrice && proposal.totalCost ? ceil2(proposal.sellPrice / proposal.totalCost) : 1);
 
   interface ProductOption {
     id: number;
@@ -235,15 +236,15 @@ export default function PropostaPDFModal({
   }
 
   const productOptions: ProductOption[] = productItems.map(item => {
-    const optionSellPrice = item.cost * item.qty;
+    const optionSellPrice = ceil2(item.cost * item.qty);
     return {
       id: item.id || Date.now() + Math.random(),
       qty: item.qty,
       sellPrice: optionSellPrice,
-      unitPrice: item.qty > 0 ? (optionSellPrice / item.qty) : 0,
-      multiplier: item.multiplier,
-      baseCost: item.baseCost,
-      shippingCost: item.shippingCost
+      unitPrice: item.qty > 0 ? ceil2(optionSellPrice / item.qty) : 0,
+      multiplier: item.multiplier !== undefined ? ceil2(item.multiplier) : undefined,
+      baseCost: item.baseCost !== undefined ? ceil2(item.baseCost) : undefined,
+      shippingCost: item.shippingCost !== undefined ? ceil2(item.shippingCost) : undefined
     };
   });
 
@@ -275,10 +276,10 @@ export default function PropostaPDFModal({
   };
 
   // Calculations
-  const valorEntrada = sellPrice * (entryPercent / 100);
-  const valorEntrega = sellPrice * (1 - entryPercent / 100);
-  const valorTotalComJuros = sellPrice * (1 + (interestPercent / 100));
-  const valorParcelas = valorTotalComJuros / installments;
+  const valorEntrada = ceil2(sellPrice * (entryPercent / 100));
+  const valorEntrega = ceil2(sellPrice * (1 - entryPercent / 100));
+  const valorTotalComJuros = ceil2(sellPrice * (1 + (interestPercent / 100)));
+  const valorParcelas = ceil2(valorTotalComJuros / (installments || 1));
 
   const [logoBase64, setLogoBase64] = React.useState<string>('');
 
@@ -866,10 +867,6 @@ export default function PropostaPDFModal({
     }
   };
 
-  const formatCurrency = (val: number) => {
-    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  };
-
   const renderPixBoletoTerms = (totalAmount: number, directTerms?: string, entryPct: number = 50) => {
     const terms = (directTerms || '').trim();
 
@@ -880,8 +877,8 @@ export default function PropostaPDFModal({
     if (matchEntradaEntrega) {
       const p1 = parseInt(matchEntradaEntrega[1], 10);
       const p2 = parseInt(matchEntradaEntrega[2], 10);
-      const v1 = totalAmount * (p1 / 100);
-      const v2 = totalAmount * (p2 / 100);
+      const v1 = ceil2(totalAmount * (p1 / 100));
+      const v2 = ceil2(totalAmount * (p2 / 100));
       return (
         <span>
           Entrada ({p1}%) <strong className="text-slate-950 font-bold">{formatCurrency(v1)}</strong> + Na entrega ({p2}%) <strong className="text-slate-950 font-bold">{formatCurrency(v2)}</strong>
@@ -894,8 +891,8 @@ export default function PropostaPDFModal({
     if (regexSimpleEntradaEntrega.test(terms)) {
       const p1 = entryPct > 0 && entryPct < 100 ? entryPct : 50;
       const p2 = 100 - p1;
-      const v1 = totalAmount * (p1 / 100);
-      const v2 = totalAmount * (p2 / 100);
+      const v1 = ceil2(totalAmount * (p1 / 100));
+      const v2 = ceil2(totalAmount * (p2 / 100));
       return (
         <span>
           Entrada ({p1}%) <strong className="text-slate-950 font-bold">{formatCurrency(v1)}</strong> + Na entrega ({p2}%) <strong className="text-slate-950 font-bold">{formatCurrency(v2)}</strong>
@@ -906,7 +903,7 @@ export default function PropostaPDFModal({
     // Case 3: If terms specify installment schedules like "Entrada, 30 e 60 dias"
     if (terms) {
       if (/entrada,\s*30\s*e\s*60\s*dias/i.test(terms)) {
-        const vParc = totalAmount / 3;
+        const vParc = ceil2(totalAmount / 3);
         return (
           <span>
             {terms} (3x de <strong className="text-slate-950 font-bold">{formatCurrency(vParc)}</strong>)
@@ -914,7 +911,7 @@ export default function PropostaPDFModal({
         );
       }
       if (/entrada,\s*30,\s*60\s*e\s*90\s*dias/i.test(terms)) {
-        const vParc = totalAmount / 4;
+        const vParc = ceil2(totalAmount / 4);
         return (
           <span>
             {terms} (4x de <strong className="text-slate-950 font-bold">{formatCurrency(vParc)}</strong>)
@@ -922,7 +919,7 @@ export default function PropostaPDFModal({
         );
       }
       if (/30,\s*60\s*e\s*90\s*dias/i.test(terms)) {
-        const vParc = totalAmount / 3;
+        const vParc = ceil2(totalAmount / 3);
         return (
           <span>
             {terms} (3x de <strong className="text-slate-950 font-bold">{formatCurrency(vParc)}</strong>)
@@ -931,8 +928,8 @@ export default function PropostaPDFModal({
       }
 
       if (entryPct > 0 && entryPct < 100) {
-        const vEnt = totalAmount * (entryPct / 100);
-        const vRest = totalAmount * ((100 - entryPct) / 100);
+        const vEnt = ceil2(totalAmount * (entryPct / 100));
+        const vRest = ceil2(totalAmount * ((100 - entryPct) / 100));
         return (
           <span>
             <strong className="text-slate-950 font-bold">{terms}</strong>
@@ -951,8 +948,8 @@ export default function PropostaPDFModal({
 
     const p1 = entryPct > 0 && entryPct < 100 ? entryPct : 50;
     const p2 = 100 - p1;
-    const v1 = totalAmount * (p1 / 100);
-    const v2 = totalAmount * (p2 / 100);
+    const v1 = ceil2(totalAmount * (p1 / 100));
+    const v2 = ceil2(totalAmount * (p2 / 100));
     return (
       <span>
         Entrada ({p1}%) <strong className="text-slate-950 font-bold">{formatCurrency(v1)}</strong> + Na entrega ({p2}%) <strong className="text-slate-950 font-bold">{formatCurrency(v2)}</strong>
@@ -1340,12 +1337,12 @@ export default function PropostaPDFModal({
                         </h4>
                         
                         {(() => {
-                          const servicesSellPrice = totalServicesCost * markupMultiplier;
-                          const sEntrada = servicesSellPrice * (entryPercent / 100);
-                          const sEntrega = servicesSellPrice * (1 - entryPercent / 100);
-                          const sTotalComJuros = servicesSellPrice * (1 + (interestPercent / 100));
-                          const sParcelas = sTotalComJuros / installments;
-                          const sTotalComDesconto = servicesSellPrice * (1 - (paymentDiscountPercent / 100));
+                          const servicesSellPrice = ceil2(totalServicesCost * markupMultiplier);
+                          const sEntrada = ceil2(servicesSellPrice * (entryPercent / 100));
+                          const sEntrega = ceil2(servicesSellPrice * (1 - entryPercent / 100));
+                          const sTotalComJuros = ceil2(servicesSellPrice * (1 + (interestPercent / 100)));
+                          const sParcelas = ceil2(sTotalComJuros / (installments || 1));
+                          const sTotalComDesconto = ceil2(servicesSellPrice * (1 - (paymentDiscountPercent / 100)));
 
                           const showCash = paymentMethodCash;
                           const showInstallments = paymentMethodInstallments;
@@ -1397,8 +1394,8 @@ export default function PropostaPDFModal({
                                         <p className="font-semibold text-indigo-950 text-[10px] mb-0.5">Opção B: Cartão de Crédito</p>
                                         <ul className="list-disc pl-4 space-y-1 text-slate-700 font-semibold text-[11px]">
                                           {cardInstallmentOptions.map((cOpt, cIdx) => {
-                                            const cOptTotal = servicesSellPrice * (1 + ((cOpt.interestPercent || 0) / 100));
-                                            const cOptParcela = cOptTotal / (cOpt.installments || 1);
+                                            const cOptTotal = ceil2(servicesSellPrice * (1 + ((cOpt.interestPercent || 0) / 100)));
+                                            const cOptParcela = ceil2(cOptTotal / (cOpt.installments || 1));
                                             const scheduleText = getInstallmentScheduleText(cOpt.installments, cOpt.withEntry);
                                             return (
                                               <li key={cIdx}>
@@ -1590,11 +1587,11 @@ export default function PropostaPDFModal({
                       
                       <div className="space-y-1.5">
                         {productOptions.map((opt) => {
-                          const optEntrada = opt.sellPrice * (entryPercent / 100);
-                          const optEntrega = opt.sellPrice * (1 - entryPercent / 100);
-                          const optTotalComJuros = opt.sellPrice * (1 + (interestPercent / 100));
-                          const optParcelas = optTotalComJuros / installments;
-                          const optTotalComDesconto = opt.sellPrice * (1 - (paymentDiscountPercent / 100));
+                          const optEntrada = ceil2(opt.sellPrice * (entryPercent / 100));
+                          const optEntrega = ceil2(opt.sellPrice * (1 - entryPercent / 100));
+                          const optTotalComJuros = ceil2(opt.sellPrice * (1 + (interestPercent / 100)));
+                          const optParcelas = ceil2(optTotalComJuros / (installments || 1));
+                          const optTotalComDesconto = ceil2(opt.sellPrice * (1 - (paymentDiscountPercent / 100)));
 
                           const showCash = paymentMethodCash;
                           const showInstallments = paymentMethodInstallments;
@@ -1635,8 +1632,8 @@ export default function PropostaPDFModal({
                                         <span className="font-bold text-slate-800">Cartão: </span> 
                                         <div className="pl-2 space-y-0.5 mt-0.5">
                                           {cardInstallmentOptions.map((cOpt, cIdx) => {
-                                            const cOptTotal = opt.sellPrice * (1 + ((cOpt.interestPercent || 0) / 100));
-                                            const cOptParcela = cOptTotal / (cOpt.installments || 1);
+                                            const cOptTotal = ceil2(opt.sellPrice * (1 + ((cOpt.interestPercent || 0) / 100)));
+                                            const cOptParcela = ceil2(cOptTotal / (cOpt.installments || 1));
                                             const scheduleText = getInstallmentScheduleText(cOpt.installments, cOpt.withEntry);
                                             return (
                                               <div key={cIdx}>

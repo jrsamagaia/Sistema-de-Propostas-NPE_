@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 
 import { Cost, Rate, Supply, Process, Status, Proposal, Lead, IntegrationSetting, isApprovedStatusName } from './types';
+import { ceil2 } from './utils/math';
 
 // Import subcomponents
 import Dashboard from './components/Dashboard';
@@ -166,9 +167,9 @@ export default function App() {
   const [settings, setSettings] = useState<IntegrationSetting[]>([]);
   const [proposalToEdit, setProposalToEdit] = useState<Proposal | 'new' | null>(null);
 
-  const totalFixedCosts = fixedCosts.reduce((acc, curr) => acc + curr.value, 0);
-  const totalRatesPercent = rates.reduce((acc, curr) => acc + curr.percentage, 0);
-  const markupMultiplier = totalRatesPercent >= 100 ? 1 : 1 / (1 - (totalRatesPercent / 100));
+  const totalFixedCosts = ceil2(fixedCosts.reduce((acc, curr) => acc + curr.value, 0));
+  const totalRatesPercent = ceil2(rates.reduce((acc, curr) => acc + curr.percentage, 0));
+  const markupMultiplier = ceil2(totalRatesPercent >= 100 ? 1 : 1 / (1 - (totalRatesPercent / 100)));
 
   const showNotification = (msg: string) => {
     setNotification(msg);
@@ -206,6 +207,27 @@ export default function App() {
             data.push(docData);
           }
         });
+
+        // Also merge local cache to guarantee no items are lost across network fluctuations
+        try {
+          const localKey = `editora_cache_${collectionName}`;
+          const cur = localStorage.getItem(localKey);
+          if (cur) {
+            const list = JSON.parse(cur);
+            if (Array.isArray(list)) {
+              for (const localItem of list) {
+                const idKey = String(localItem.id);
+                if (!seenIds.has(idKey)) {
+                  seenIds.add(idKey);
+                  data.push(localItem);
+                  // Sync back to Firestore
+                  const cleaned = JSON.parse(JSON.stringify(localItem));
+                  setDoc(doc(db, collectionName, idKey), cleaned).catch(() => {});
+                }
+              }
+            }
+          }
+        } catch (_) {}
         
         if (data.length === 0 && initialData) {
           for (const item of initialData) {
@@ -295,11 +317,27 @@ export default function App() {
     if (collectionName === 'settings') updateState(setSettings as React.Dispatch<React.SetStateAction<any[]>>, (a, b) => a.id.localeCompare(b.id));
 
     try {
+      // Local mirror cache for instant offline recovery
+      const localKey = `editora_cache_${collectionName}`;
+      const cur = localStorage.getItem(localKey);
+      let list = cur ? JSON.parse(cur) : [];
+      const idStr = String(item.id);
+      list = list.filter((p: any) => String(p.id) !== idStr);
+      list.unshift(item);
+      localStorage.setItem(localKey, JSON.stringify(list));
+    } catch (_) {}
+
+    try {
       // Strips out undefined properties that cause Firestore setDoc to fail
       const cleanedItem = JSON.parse(JSON.stringify(item));
       await setDoc(doc(db, collectionName, String(item.id)), cleanedItem);
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `${collectionName}/${item.id}`);
+      console.error(`Erro ao salvar no Firestore [${collectionName}/${item.id}]:`, err);
+      try {
+        handleFirestoreError(err, OperationType.WRITE, `${collectionName}/${item.id}`);
+      } catch (e: any) {
+        console.warn("Aviso de sincronização Firestore:", e);
+      }
     }
   };
 

@@ -3,6 +3,7 @@ import { Pencil, Trash2, Plus, Save, Settings, X, FileText, Printer, Clock, Send
 import { Proposal, Supply, Rate, Status, ProposalItem, Lead, IntegrationSetting, CardInstallmentOption, getInstallmentScheduleText, SupplyVariation } from '../types';
 import PropostaPDFModal from './PropostaPDFModal';
 import AutocompleteSelect from './AutocompleteSelect';
+import { ceil2, formatMoney, formatCurrency } from '../utils/math';
 
 interface PropostasProps {
   supplies: Supply[];
@@ -525,12 +526,12 @@ export default function Propostas({
     const sItems = items.filter(item => item.type !== 'produto');
     const pItems = items.filter(item => item.type === 'produto');
 
-    const sCost = sItems.reduce((acc, item) => acc + (item.cost * item.qty), 0);
+    const sCost = ceil2(sItems.reduce((acc, item) => acc + ceil2(item.cost * item.qty), 0));
     
     let mProductCost = 0;
     if (pItems.length > 0) {
       const mQtyItem = pItems.reduce((min, item) => (item.qty < min.qty ? item : min), pItems[0]);
-      mProductCost = mQtyItem.cost * mQtyItem.qty;
+      mProductCost = ceil2(mQtyItem.cost * mQtyItem.qty);
     }
 
     let totalCost = 0;
@@ -541,10 +542,10 @@ export default function Propostas({
       sellPrice = mProductCost;
     } else if (sItems.length > 0 && pItems.length === 0) {
       totalCost = sCost;
-      sellPrice = sCost * markupMultiplier;
+      sellPrice = ceil2(sCost * markupMultiplier);
     } else {
-      totalCost = sCost + mProductCost;
-      sellPrice = (sCost * markupMultiplier) + mProductCost;
+      totalCost = ceil2(sCost + mProductCost);
+      sellPrice = ceil2((sCost * markupMultiplier) + mProductCost);
     }
 
     if (editingProposalId) {
@@ -689,12 +690,12 @@ export default function Propostas({
   const serviceItems = items.filter(item => item.type !== 'produto');
   const productItems = items.filter(item => item.type === 'produto');
 
-  const currentServicesCost = serviceItems.reduce((acc, item) => acc + (item.cost * item.qty), 0);
+  const currentServicesCost = ceil2(serviceItems.reduce((acc, item) => acc + ceil2(item.cost * item.qty), 0));
   
   let minProductCost = 0;
   if (productItems.length > 0) {
     const minQtyItem = productItems.reduce((min, item) => (item.qty < min.qty ? item : min), productItems[0]);
-    minProductCost = minQtyItem.cost * minQtyItem.qty;
+    minProductCost = ceil2(minQtyItem.cost * minQtyItem.qty);
   }
 
   let currentTotalCost = 0;
@@ -705,10 +706,10 @@ export default function Propostas({
     currentSellPrice = minProductCost;
   } else if (serviceItems.length > 0 && productItems.length === 0) {
     currentTotalCost = currentServicesCost;
-    currentSellPrice = currentServicesCost * markupMultiplier;
+    currentSellPrice = ceil2(currentServicesCost * markupMultiplier);
   } else {
-    currentTotalCost = currentServicesCost + minProductCost;
-    currentSellPrice = (currentServicesCost * markupMultiplier) + minProductCost;
+    currentTotalCost = ceil2(currentServicesCost + minProductCost);
+    currentSellPrice = ceil2((currentServicesCost * markupMultiplier) + minProductCost);
   }
 
   const isApprovedStatus = showOnlyApproved || (editingProposalId !== null && proposals.find(p => p.id === editingProposalId)?.status?.toLowerCase().includes('aprovad'));
@@ -1303,12 +1304,12 @@ export default function Propostas({
               <div className="flex gap-6 items-center flex-col md:flex-row">
                 <div className="text-center md:text-right">
                   <p className="text-sm font-semibold text-slate-500 uppercase">Custo Mercadoria Total</p>
-                  <p className="text-2xl font-mono text-slate-700 font-bold">R$ {currentTotalCost.toFixed(2)}</p>
+                  <p className="text-2xl font-mono text-slate-700 font-bold">{formatMoney(currentTotalCost)}</p>
                 </div>
                 <div className="w-px h-12 bg-slate-300 hidden md:block"></div>
                 <div className="text-center md:text-right bg-amber-100 px-6 py-3 rounded-lg border border-amber-200 shadow-inner">
                   <p className="text-xs font-bold text-amber-800 uppercase tracking-wider">Preço de Venda Sugerido</p>
-                  <p className="text-3xl font-bold text-emerald-600 font-mono">R$ {currentSellPrice.toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-emerald-600 font-mono">{formatMoney(currentSellPrice)}</p>
                 </div>
               </div>
             </div>
@@ -1374,7 +1375,7 @@ export default function Propostas({
                     <div>
                       <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Valor Final Aprovado (com desconto)</label>
                       <div className="relative rounded-lg shadow-inner bg-slate-50 border border-slate-200 px-3 py-2 text-sm text-slate-700 font-mono font-bold h-[38px] flex items-center">
-                        R$ {(currentSellPrice * (1 - paymentDiscountPercent / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatMoney(ceil2(currentSellPrice * (1 - paymentDiscountPercent / 100)))}
                       </div>
                       <p className="text-[10px] text-slate-400 mt-1">Calculado automaticamente com base no desconto.</p>
                     </div>
@@ -1467,8 +1468,8 @@ export default function Propostas({
 
                     <div className="space-y-4">
                       {cardInstallmentOptions.map((opt, index) => {
-                        const optTotalComJuros = currentSellPrice * (1 + (opt.interestPercent || 0) / 100);
-                        const optValorParcela = optTotalComJuros / (opt.installments || 1);
+                        const optTotalComJuros = ceil2(currentSellPrice * (1 + (opt.interestPercent || 0) / 100));
+                        const optValorParcela = ceil2(optTotalComJuros / (opt.installments || 1));
                         const calculatedSchedule = getInstallmentScheduleText(opt.installments, opt.withEntry);
 
                         return (
@@ -1538,10 +1539,10 @@ export default function Propostas({
                                 </label>
                                 <div className="rounded-lg shadow-inner bg-slate-50 border border-slate-200 px-3 py-1.5 text-xs text-slate-800 font-mono font-bold flex flex-col justify-center min-h-[38px]">
                                   <span className="text-slate-900 text-sm">
-                                    R$ {optTotalComJuros.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {formatMoney(optTotalComJuros)}
                                   </span>
                                   <span className="text-[10px] text-slate-500 font-sans font-medium">
-                                    {opt.installments}x de R$ {optValorParcela.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {opt.interestPercent === 0 ? '(Sem juros)' : `(+${opt.interestPercent}%)`}
+                                    {opt.installments}x de {formatMoney(optValorParcela)} {opt.interestPercent === 0 ? '(Sem juros)' : `(+${opt.interestPercent}%)`}
                                   </span>
                                 </div>
                               </div>
@@ -2169,7 +2170,7 @@ export default function Propostas({
                           </div>
                           <div className="md:mt-3">
                             <span className="text-blue-300/80 block text-[11px] uppercase tracking-wider font-bold mb-0.5">Custo Estimado</span>
-                            <span className="font-semibold text-blue-100 font-mono text-base">R$ {prop.totalCost.toFixed(2)}</span>
+                            <span className="font-semibold text-blue-100 font-mono text-base">{formatMoney(ceil2(prop.totalCost))}</span>
                           </div>
                         </div>
 
@@ -2177,7 +2178,7 @@ export default function Propostas({
                         <div className="bg-blue-900/40 rounded-xl px-4 py-3.5 min-w-[170px] flex flex-col justify-center border border-blue-900/50">
                           <span className="text-blue-300/80 text-[11px] uppercase tracking-wider font-bold mb-0.5">Valor de Venda</span>
                           <span className="text-2xl font-black text-amber-400 font-mono">
-                            R$ {(prop.approvedValue !== undefined ? prop.approvedValue : prop.sellPrice).toFixed(2)}
+                            {formatMoney(ceil2(prop.approvedValue !== undefined ? prop.approvedValue : prop.sellPrice))}
                           </span>
                         </div>
 

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Proposal, Status, getInstallmentScheduleText, isApprovedStatusName } from '../types';
 import AutocompleteSelect from './AutocompleteSelect';
+import { ceil2, formatMoney, formatCurrency } from '../utils/math';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -160,6 +161,41 @@ export const STATUS_COLOR_OPTIONS: Record<string, StatusColorOption> = {
   }
 };
 
+export const normalizeStatusStr = (s?: string): string => {
+  return (s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+};
+
+export const isProposalInStatusColumn = (
+  proposalStatus: string | undefined,
+  columnStatusName: string,
+  columnIndex: number,
+  allStatuses: Status[]
+): boolean => {
+  const normProp = normalizeStatusStr(proposalStatus);
+  const normCol = normalizeStatusStr(columnStatusName);
+
+  if (normProp && normCol && normProp === normCol) {
+    return true;
+  }
+
+  // Handle first column (Em desenvolvimento / Início do Funil)
+  if (columnIndex === 0) {
+    if (!normProp) return true;
+    if (normProp.includes('desenvolvimento') && normCol.includes('desenvolvimento')) return true;
+    if (normProp.includes('andamento') && normCol.includes('desenvolvimento')) return true;
+    // If the proposal status doesn't match ANY other column in the board, show it in column 0
+    const matchesOtherColumn = allStatuses.some((s, idx) => idx !== 0 && normalizeStatusStr(s.name) === normProp);
+    if (!matchesOtherColumn) return true;
+  }
+
+  // Also match approved statuses flexibly
+  if (isApprovedStatusName(columnStatusName) && isApprovedStatusName(proposalStatus || '')) {
+    return true;
+  }
+
+  return false;
+};
+
 export const getStatusColorTheme = (status: Status): StatusColorOption => {
   if (status.color && STATUS_COLOR_OPTIONS[status.color]) {
     return STATUS_COLOR_OPTIONS[status.color];
@@ -193,28 +229,29 @@ const parseProposalDate = (dateStr?: string): Date | null => {
   const trimmed = dateStr.trim();
   if (!trimmed) return null;
 
-  // DD/MM/YYYY
-  if (trimmed.includes('/')) {
-    const parts = trimmed.split('/');
+  // DD/MM/YYYY or DD-MM-YYYY
+  if (trimmed.includes('/') || (trimmed.includes('-') && trimmed.indexOf('-') <= 2)) {
+    const delimiter = trimmed.includes('/') ? '/' : '-';
+    const parts = trimmed.split(delimiter);
     if (parts.length === 3) {
       const day = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10) - 1;
       const year = parseInt(parts[2], 10);
       if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
-        return new Date(year, month, day);
+        return new Date(year, month, day, 12, 0, 0);
       }
     }
   }
 
   // YYYY-MM-DD
-  if (trimmed.includes('-')) {
+  if (trimmed.includes('-') && trimmed.indexOf('-') === 4) {
     const parts = trimmed.split('-');
     if (parts.length === 3) {
       const year = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10) - 1;
       const day = parseInt(parts[2], 10);
       if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
-        return new Date(year, month, day);
+        return new Date(year, month, day, 12, 0, 0);
       }
     }
   }
@@ -233,19 +270,15 @@ const getEffectiveDate = (prop: Proposal): Date | null => {
     return parseProposalDate(prop.date);
   }
 
-  // Para propostas não aprovadas: filtrar pela Validade da Proposta
+  // Para propostas em andamento/não aprovadas: filtrar primariamente pela data de emissão/criação
+  if (prop.date) {
+    const parsedCreationDate = parseProposalDate(prop.date);
+    if (parsedCreationDate) return parsedCreationDate;
+  }
+
   if (prop.validityDate) {
     const parsedValidity = parseProposalDate(prop.validityDate);
     if (parsedValidity) return parsedValidity;
-  }
-
-  if (prop.date && prop.validationDays) {
-    const baseDate = parseProposalDate(prop.date);
-    if (baseDate) {
-      const vDate = new Date(baseDate);
-      vDate.setDate(vDate.getDate() + prop.validationDays);
-      return vDate;
-    }
   }
 
   return parseProposalDate(prop.date);
@@ -320,7 +353,7 @@ export default function KanbanBoard({
 
   const handleConfirmApproval = () => {
     if (!proposalForApproval) return;
-    const numericValue = parseFloat(approvedValue) || proposalForApproval.sellPrice;
+    const numericValue = ceil2(parseFloat(approvedValue) || proposalForApproval.sellPrice);
     
     const isInstallmentsMethod = 
       approvedPaymentMethod === 'Cartão de Crédito Parcelado' || 
@@ -336,7 +369,7 @@ export default function KanbanBoard({
       installmentsDetails,
       formatToBR(approvedDate)
     );
-    showNotification(`Proposta aprovada com sucesso! Valor: R$ ${numericValue.toFixed(2)} - Pagamento: ${approvedPaymentMethod}`);
+    showNotification(`Proposta aprovada com sucesso! Valor: ${formatMoney(numericValue)} - Pagamento: ${approvedPaymentMethod}`);
     setProposalForApproval(null);
     setApprovedInstallmentsDetails('');
     setApprovedDate('');
@@ -535,8 +568,7 @@ export default function KanbanBoard({
 
       // 2. Month and Year filter
       if (filterMonth !== 'all' || filterYear !== 'all') {
-        const d = getEffectiveDate(prop);
-        if (!d) return false;
+        const d = getEffectiveDate(prop) || new Date();
 
         if (filterMonth !== 'all') {
           const targetMonth = parseInt(filterMonth, 10);
@@ -554,11 +586,11 @@ export default function KanbanBoard({
   }, [proposals, filterMonth, filterYear, searchQuery]);
 
   const totalFilteredValue = useMemo(() => {
-    return filteredProposals.reduce((acc, curr) => {
+    return ceil2(filteredProposals.reduce((acc, curr) => {
       const isApproved = isApprovedStatusName(curr.status);
       const val = (isApproved && curr.approvedValue !== undefined) ? curr.approvedValue : curr.sellPrice;
       return acc + val;
-    }, 0);
+    }, 0));
   }, [filteredProposals]);
 
   const handlePrevMonth = () => {
@@ -713,7 +745,7 @@ export default function KanbanBoard({
           </span>
           <span className="text-slate-300">•</span>
           <span className="font-bold text-slate-800 font-mono text-xs">
-            Total: R$ {totalFilteredValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            Total: {formatMoney(totalFilteredValue)}
           </span>
           <button
             onClick={() => setIsAddingStatus(true)}
@@ -730,12 +762,12 @@ export default function KanbanBoard({
       <div className="flex-1 overflow-x-auto overflow-y-hidden pb-1 w-full">
         <div className="flex h-full gap-2.5 w-full min-w-0">
           {statuses.map((status, index) => {
-            const propsInStatus = filteredProposals.filter(p => p.status === status.name);
-            const totalValueInStatus = propsInStatus.reduce((acc, curr) => {
+            const propsInStatus = filteredProposals.filter(p => isProposalInStatusColumn(p.status, status.name, index, statuses));
+            const totalValueInStatus = ceil2(propsInStatus.reduce((acc, curr) => {
               const isApproved = isApprovedStatusName(curr.status);
               const val = (isApproved && curr.approvedValue !== undefined) ? curr.approvedValue : curr.sellPrice;
               return acc + val;
-            }, 0);
+            }, 0));
 
             const theme = getStatusColorTheme(status);
 
@@ -858,7 +890,7 @@ export default function KanbanBoard({
                 {/* Column Subheader with Estimated Total */}
                 <div className={`px-2 py-0.5 border-b text-[9px] font-bold flex justify-between items-center ${theme.summaryBg}`}>
                   <span className="opacity-75 uppercase tracking-wider text-[8.5px]">Total:</span>
-                  <span className="font-mono font-bold">R$ {totalValueInStatus.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  <span className="font-mono font-bold">{formatMoney(totalValueInStatus)}</span>
                 </div>
 
                 {/* Proposals Card Container */}
@@ -916,7 +948,7 @@ export default function KanbanBoard({
                                 <span className="truncate">Pgto: <strong>{prop.approvedPaymentMethod}</strong></span>
                                 {prop.approvedValue !== undefined && (
                                   <span className="font-bold font-mono text-emerald-800 shrink-0 ml-1">
-                                    R$ {prop.approvedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    {formatMoney(prop.approvedValue)}
                                   </span>
                                 )}
                               </div>
@@ -933,7 +965,7 @@ export default function KanbanBoard({
                               {prop.items.length} {prop.items.length === 1 ? 'item' : 'itens'}
                             </span>
                             <span className="font-bold text-emerald-600 text-[11px] font-mono">
-                              R$ {prop.sellPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              {formatMoney(prop.sellPrice)}
                             </span>
                           </div>
 
@@ -1149,10 +1181,10 @@ export default function KanbanBoard({
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       <span className="text-[10px] text-slate-400 self-center">Opções da proposta:</span>
                       {proposalForApproval.cardInstallmentOptions.map((opt, idx) => {
-                        const totalComJuros = proposalForApproval.sellPrice * (1 + (opt.interestPercent || 0) / 100);
-                        const parcela = totalComJuros / (opt.installments || 1);
+                        const totalComJuros = ceil2(proposalForApproval.sellPrice * (1 + (opt.interestPercent || 0) / 100));
+                        const parcela = ceil2(totalComJuros / (opt.installments || 1));
                         const schedule = opt.withEntry ? getInstallmentScheduleText(opt.installments, true) : '';
-                        const text = `${opt.installments}x de R$ ${parcela.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${schedule ? ` (${schedule})` : ''}${opt.interestPercent ? ` (${opt.interestPercent}% juros)` : ' (sem juros)'}`;
+                        const text = `${opt.installments}x de ${formatMoney(parcela)}${schedule ? ` (${schedule})` : ''}${opt.interestPercent ? ` (${opt.interestPercent}% juros)` : ' (sem juros)'}`;
                         return (
                           <button
                             key={idx}
