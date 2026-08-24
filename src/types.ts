@@ -66,7 +66,14 @@ export interface ProposalItem {
 export interface CardInstallmentOption {
   id?: string;
   installments: number;
-  interestPercent: number;
+  interestPercent: number; // Taxas do cartão (%)
+  withEntry?: boolean; // Se a 1ª parcela é como entrada (início do projeto)
+}
+
+export interface BoletoInstallmentOption {
+  id?: string;
+  installments: number;
+  interestPercent: number; // Acréscimo / Taxas Boleto (%)
   withEntry?: boolean; // Se a 1ª parcela é como entrada (início do projeto)
 }
 
@@ -107,6 +114,7 @@ export interface Proposal {
   paymentInstallments?: number;
   paymentInterestPercent?: number;
   cardInstallmentOptions?: CardInstallmentOption[]; // Multiple card installment conditions
+  boletoInstallmentOptions?: BoletoInstallmentOption[]; // Multiple boleto/PIX installment conditions
   paymentDirectTerms?: string; // e.g. "Entrada, 30 e 60 dias", "30/60/90 dias", etc.
   paymentCustomText?: string;
   validationDays?: number;
@@ -122,6 +130,9 @@ export interface Proposal {
   approvedDate?: string; // date the proposal was approved (DD/MM/YYYY)
   paymentMethodCash?: boolean;
   paymentMethodInstallments?: boolean;
+  paymentMethodCard?: boolean; // Pagamento Parcelado (Cartão de Crédito)
+  paymentMethodPixBoleto?: boolean; // Pagamento Parcelado (PIX / Boleto)
+  includeBoletoInstallments?: boolean; // Checkbox para incluir ou não opções adicionais de parcelamento no boleto/PIX
   paymentDiscountPercent?: number;
 }
 
