@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Pencil, Trash2, Plus, Save, Settings, X, FileText, Printer, Clock, Send, Loader2, Search, Calendar, Filter, ChevronDown, Layers, CreditCard, Banknote, Landmark, Info } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Pencil, Trash2, Plus, Save, Settings, X, FileText, Printer, Clock, Send, Loader2, Search, Calendar, Filter, ChevronDown, ChevronUp, Layers, CreditCard, Banknote, Landmark, Info } from 'lucide-react';
 import { Proposal, Supply, Rate, Status, ProposalItem, Lead, IntegrationSetting, CardInstallmentOption, BoletoInstallmentOption, getInstallmentScheduleText, SupplyVariation } from '../types';
 import PropostaPDFModal from './PropostaPDFModal';
 import AutocompleteSelect from './AutocompleteSelect';
@@ -307,6 +308,7 @@ export default function Propostas({
   const [includeBoletoInstallments, setIncludeBoletoInstallments] = useState<boolean>(false);
   const [paymentDirectTerms, setPaymentDirectTerms] = useState<string>('Entrada, 30 e 60 dias');
   const [paymentCustomText, setPaymentCustomText] = useState<string>('');
+  const [isFloatingMenuOpen, setIsFloatingMenuOpen] = useState<boolean>(true);
 
   const handleAddCardInstallmentOption = () => {
     const lastOption = cardInstallmentOptions[cardInstallmentOptions.length - 1];
@@ -685,6 +687,96 @@ export default function Propostas({
     }
   };
 
+  const handlePrintProposalPDF = () => {
+    if (proposalName.trim() && items.length > 0) {
+      const currentProp: Proposal = {
+        id: editingProposalId || Date.now(),
+        name: proposalName,
+        projectType,
+        date: new Date().toLocaleDateString('pt-BR'),
+        items: [...items],
+        totalCost: currentTotalCost,
+        sellPrice: currentSellPrice,
+        status: 'Em desenvolvimento',
+        paymentMethodCash,
+        paymentMethodCard,
+        paymentMethodPixBoleto,
+        paymentMethodInstallments: (paymentMethodCard || paymentMethodPixBoleto),
+        paymentDiscountPercent,
+        paymentEntryPercent,
+        paymentInstallments: cardInstallmentOptions[0]?.installments || paymentInstallments || 10,
+        paymentInterestPercent: cardInstallmentOptions[0]?.interestPercent != null ? cardInstallmentOptions[0].interestPercent : paymentInterestPercent,
+        cardInstallmentOptions,
+        boletoInstallmentOptions,
+        includeBoletoInstallments,
+        paymentDirectTerms,
+        paymentCustomText,
+        validationDays,
+        deliveryDays,
+        bookFeaturesDescription,
+        markupMultiplier,
+        leadId: (selectedLeadId && selectedLeadId !== '') ? Number(selectedLeadId) : undefined,
+        clientName: clientName.trim() || undefined,
+        clientPhone: clientPhone.trim() || undefined
+      };
+      setSelectedProposalForPDF(currentProp);
+    } else {
+      showNotification('Defina o nome da proposta e adicione pelo menos um item para gerar o PDF.');
+    }
+  };
+
+  const handleSendProposalWhatsApp = async () => {
+    if (proposalName.trim() && items.length > 0) {
+      if (!clientName.trim() || !clientPhone.trim()) {
+        showNotification("Por favor, informe o Nome do Cliente e o WhatsApp para habilitar o envio.");
+        return;
+      }
+
+      setIsValidatingConfig(true);
+      const isConfigValid = await validateWhatsAppConfig();
+      setIsValidatingConfig(false);
+
+      if (!isConfigValid) return;
+
+      const currentProp: Proposal = {
+        id: editingProposalId || Date.now(),
+        name: proposalName,
+        projectType,
+        date: new Date().toLocaleDateString('pt-BR'),
+        items: [...items],
+        totalCost: currentTotalCost,
+        sellPrice: currentSellPrice,
+        status: 'Em desenvolvimento',
+        paymentMethodCash,
+        paymentMethodCard,
+        paymentMethodPixBoleto,
+        paymentMethodInstallments: (paymentMethodCard || paymentMethodPixBoleto),
+        paymentDiscountPercent,
+        paymentEntryPercent,
+        paymentInstallments: cardInstallmentOptions[0]?.installments || paymentInstallments || 10,
+        paymentInterestPercent: cardInstallmentOptions[0]?.interestPercent != null ? cardInstallmentOptions[0].interestPercent : paymentInterestPercent,
+        cardInstallmentOptions,
+        boletoInstallmentOptions,
+        includeBoletoInstallments,
+        paymentDirectTerms,
+        paymentCustomText,
+        validationDays,
+        deliveryDays,
+        bookFeaturesDescription,
+        markupMultiplier,
+        leadId: (selectedLeadId && selectedLeadId !== '') ? Number(selectedLeadId) : undefined,
+        clientName: clientName.trim(),
+        clientPhone: clientPhone.trim()
+      };
+      setSelectedProposalForPDF({
+        ...currentProp,
+        triggerWhatsAppOnMount: true
+      });
+    } else {
+      showNotification('Defina o nome da proposta e adicione pelo menos um item para habilitar o envio por WhatsApp.');
+    }
+  };
+
   const handleEditProposal = (prop: Proposal) => {
     setEditingProposalId(prop.id);
     setProposalName(prop.name);
@@ -800,7 +892,7 @@ export default function Propostas({
 
   if (isCreating) {
     return (
-      <div className="max-w-5xl mx-auto space-y-6 animate-fade-in pb-12">
+      <div className="max-w-5xl mx-auto space-y-6 animate-fade-in pb-36">
         <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100">
           <div className="flex-1">
             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome do Projeto ou Proposta</label>
@@ -2043,57 +2135,24 @@ export default function Propostas({
               </div>
             )}
 
-            {/* Seção de botões de Ação */}
+            {/* Seção de botões de Ação no rodapé */}
             <div className="mt-8 border-t border-slate-200 pt-6 flex flex-col items-stretch md:items-end gap-3 font-sans">
               <button 
+                type="button"
                 onClick={handleSaveProposal}
-                className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-3 rounded-lg font-bold text-lg flex items-center gap-2 shadow-lg hover:shadow-xl transition-all w-full md:w-auto justify-center cursor-pointer"
+                className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-3.5 rounded-xl font-bold text-base md:text-lg flex items-center gap-2.5 shadow-lg hover:shadow-xl transition-all w-full md:w-auto justify-center cursor-pointer active:scale-[0.99]"
               >
-                <Save size={18} />
+                <Save size={20} />
                 {editingProposalId ? 'Salvar Alterações' : 'Salvar Proposta Oficial'}
               </button>
 
               <button 
                 disabled={!proposalName.trim() || items.length === 0}
                 type="button"
-                onClick={() => {
-                  if (proposalName.trim() && items.length > 0) {
-                    const currentProp: Proposal = {
-                      id: editingProposalId || Date.now(),
-                      name: proposalName,
-                      projectType,
-                      date: new Date().toLocaleDateString('pt-BR'),
-                      items: [...items],
-                      totalCost: currentTotalCost,
-                      sellPrice: currentSellPrice,
-                      status: 'Em desenvolvimento',
-                      paymentMethodCash,
-                      paymentMethodCard,
-                      paymentMethodPixBoleto,
-                      paymentMethodInstallments: (paymentMethodCard || paymentMethodPixBoleto),
-                      paymentDiscountPercent,
-                      paymentEntryPercent,
-                      paymentInstallments: cardInstallmentOptions[0]?.installments || paymentInstallments || 10,
-                      paymentInterestPercent: cardInstallmentOptions[0]?.interestPercent != null ? cardInstallmentOptions[0].interestPercent : paymentInterestPercent,
-                      cardInstallmentOptions,
-                      boletoInstallmentOptions,
-                      includeBoletoInstallments,
-                      paymentDirectTerms,
-                      paymentCustomText,
-                      validationDays,
-                      deliveryDays,
-                      bookFeaturesDescription,
-                      markupMultiplier,
-                      leadId: (selectedLeadId && selectedLeadId !== '') ? Number(selectedLeadId) : undefined,
-                      clientName: clientName.trim() || undefined,
-                      clientPhone: clientPhone.trim() || undefined
-                    };
-                    setSelectedProposalForPDF(currentProp);
-                  }
-                }}
-                className={`flex items-center gap-2 justify-center py-3.5 px-8 rounded-lg font-bold text-lg shadow-md transition-all duration-200 w-full md:w-auto text-white cursor-pointer ${
+                onClick={handlePrintProposalPDF}
+                className={`flex items-center gap-2.5 justify-center py-3.5 px-8 rounded-xl font-bold text-base md:text-lg shadow-md transition-all duration-200 w-full md:w-auto text-white ${
                   (proposalName.trim() && items.length > 0) 
-                    ? 'bg-red-600 hover:bg-red-700 hover:shadow-lg active:scale-[0.98]' 
+                    ? 'bg-red-600 hover:bg-red-700 hover:shadow-lg active:scale-[0.99] cursor-pointer' 
                     : 'bg-red-350 cursor-not-allowed opacity-60'
                 }`}
                 title={(proposalName.trim() && items.length > 0) ? "Baixar ou Imprimir Proposta de Valor em PDF" : "Defina o nome da proposta e adicione itens para habilitar o PDF"}
@@ -2105,58 +2164,10 @@ export default function Propostas({
               <button 
                 disabled={!proposalName.trim() || items.length === 0 || isValidatingConfig}
                 type="button"
-                onClick={async () => {
-                  if (proposalName.trim() && items.length > 0) {
-                    if (!clientName.trim() || !clientPhone.trim()) {
-                      showNotification("Por favor, informe o Nome do Cliente e o WhatsApp para habilitar o envio.");
-                      return;
-                    }
-
-                    setIsValidatingConfig(true);
-                    const isConfigValid = await validateWhatsAppConfig();
-                    setIsValidatingConfig(false);
-
-                    if (!isConfigValid) return;
-
-                    const currentProp: Proposal = {
-                      id: editingProposalId || Date.now(),
-                      name: proposalName,
-                      projectType,
-                      date: new Date().toLocaleDateString('pt-BR'),
-                      items: [...items],
-                      totalCost: currentTotalCost,
-                      sellPrice: currentSellPrice,
-                      status: 'Em desenvolvimento',
-                      paymentMethodCash,
-                      paymentMethodCard,
-                      paymentMethodPixBoleto,
-                      paymentMethodInstallments: (paymentMethodCard || paymentMethodPixBoleto),
-                      paymentDiscountPercent,
-                      paymentEntryPercent,
-                      paymentInstallments: cardInstallmentOptions[0]?.installments || paymentInstallments || 10,
-                      paymentInterestPercent: cardInstallmentOptions[0]?.interestPercent != null ? cardInstallmentOptions[0].interestPercent : paymentInterestPercent,
-                      cardInstallmentOptions,
-                      boletoInstallmentOptions,
-                      includeBoletoInstallments,
-                      paymentDirectTerms,
-                      paymentCustomText,
-                      validationDays,
-                      deliveryDays,
-                      bookFeaturesDescription,
-                      markupMultiplier,
-                      leadId: (selectedLeadId && selectedLeadId !== '') ? Number(selectedLeadId) : undefined,
-                      clientName: clientName.trim(),
-                      clientPhone: clientPhone.trim()
-                    };
-                    setSelectedProposalForPDF({
-                      ...currentProp,
-                      triggerWhatsAppOnMount: true
-                    });
-                  }
-                }}
-                className={`flex items-center gap-2 justify-center py-3.5 px-8 rounded-lg font-bold text-lg shadow-md transition-all duration-200 w-full md:w-auto text-white cursor-pointer ${
+                onClick={handleSendProposalWhatsApp}
+                className={`flex items-center gap-2.5 justify-center py-3.5 px-8 rounded-xl font-bold text-base md:text-lg shadow-md transition-all duration-200 w-full md:w-auto text-white ${
                   (proposalName.trim() && items.length > 0) 
-                    ? 'bg-emerald-600 hover:bg-emerald-700 hover:shadow-lg active:scale-[0.98]' 
+                    ? 'bg-emerald-600 hover:bg-emerald-700 hover:shadow-lg active:scale-[0.99] cursor-pointer' 
                     : 'bg-emerald-350 cursor-not-allowed opacity-60'
                 }`}
                 title={(proposalName.trim() && items.length > 0) ? "Gerar PDF e Enviar Proposta comercial via WhatsApp para o cliente" : "Defina o nome da proposta e adicione itens para habilitar o envio por WhatsApp"}
@@ -2177,6 +2188,88 @@ export default function Propostas({
             </div>
           </div>
         </div>
+
+        {/* MENU FLUTUANTE DE AÇÕES RÁPIDAS (Salvar, Imprimir PDF, Enviar WhatsApp) */}
+        {typeof document !== 'undefined' && createPortal(
+          <div className="fixed bottom-6 right-6 md:right-8 z-50 flex flex-col items-end gap-2.5 font-sans pointer-events-auto select-none print:hidden">
+            {isFloatingMenuOpen ? (
+              <div className="flex flex-col items-end gap-2.5 drop-shadow-2xl">
+                {/* Botão para recolher o menu flutuante */}
+                <div className="flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-md px-3 py-1 rounded-full text-white text-[11px] font-semibold shadow-lg border border-white/15 mb-0.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>Ações Rápidas</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsFloatingMenuOpen(false)}
+                    className="text-slate-300 hover:text-white ml-1 p-0.5 rounded transition-colors cursor-pointer"
+                    title="Minimizar menu flutuante"
+                  >
+                    <ChevronDown size={14} />
+                  </button>
+                </div>
+
+                {/* Botão 1: Salvar Alterações / Proposta */}
+                <button 
+                  type="button"
+                  onClick={handleSaveProposal}
+                  className="bg-slate-900 hover:bg-slate-800 active:scale-95 text-white px-5 py-2.5 rounded-xl font-bold text-sm md:text-base flex items-center gap-2.5 shadow-2xl hover:shadow-slate-900/50 transition-all cursor-pointer border border-slate-700/80 w-full justify-start"
+                  title={editingProposalId ? 'Salvar Alterações da Proposta' : 'Salvar Nova Proposta'}
+                >
+                  <Save size={18} className="text-white shrink-0" />
+                  <span className="whitespace-nowrap">{editingProposalId ? 'Salvar Alterações' : 'Salvar Proposta'}</span>
+                </button>
+
+                {/* Botão 2: Imprimir Proposta (PDF) */}
+                <button 
+                  type="button"
+                  disabled={!proposalName.trim() || items.length === 0}
+                  onClick={handlePrintProposalPDF}
+                  className={`flex items-center gap-2.5 justify-start py-2.5 px-5 rounded-xl font-bold text-sm md:text-base shadow-2xl transition-all text-white border border-red-500/50 w-full ${
+                    (proposalName.trim() && items.length > 0) 
+                      ? 'bg-red-600 hover:bg-red-700 active:scale-95 hover:shadow-red-600/50 cursor-pointer' 
+                      : 'bg-red-400/80 cursor-not-allowed opacity-60'
+                  }`}
+                  title={(proposalName.trim() && items.length > 0) ? "Baixar ou Imprimir Proposta de Valor em PDF" : "Defina o nome da proposta e adicione itens para habilitar o PDF"}
+                >
+                  <FileText size={18} className="shrink-0" />
+                  <span className="whitespace-nowrap">Imprimir Proposta (PDF)</span>
+                </button>
+
+                {/* Botão 3: Enviar Proposta (WhatsApp) */}
+                <button 
+                  type="button"
+                  disabled={!proposalName.trim() || items.length === 0 || isValidatingConfig}
+                  onClick={handleSendProposalWhatsApp}
+                  className={`flex items-center gap-2.5 justify-start py-2.5 px-5 rounded-xl font-bold text-sm md:text-base shadow-2xl transition-all text-white border border-emerald-500/50 w-full ${
+                    (proposalName.trim() && items.length > 0) 
+                      ? 'bg-emerald-600 hover:bg-emerald-700 active:scale-95 hover:shadow-emerald-600/50 cursor-pointer' 
+                      : 'bg-emerald-400/80 cursor-not-allowed opacity-60'
+                  }`}
+                  title={(proposalName.trim() && items.length > 0) ? "Gerar PDF e Enviar Proposta comercial via WhatsApp para o cliente" : "Defina o nome da proposta e adicione itens para habilitar o envio por WhatsApp"}
+                >
+                  {isValidatingConfig ? (
+                    <Loader2 className="animate-spin shrink-0" size={18} />
+                  ) : (
+                    <Send size={18} className="shrink-0" />
+                  )}
+                  <span className="whitespace-nowrap">{isValidatingConfig ? 'Validando...' : 'Enviar Proposta (WhatsApp)'}</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsFloatingMenuOpen(true)}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 border border-slate-700 transition-all active:scale-95 cursor-pointer backdrop-blur-md"
+                title="Abrir menu flutuante de ações rápidas"
+              >
+                <Save size={16} />
+                <span>Ações Rápidas</span>
+                <ChevronUp size={16} />
+              </button>
+            )}
+          </div>,
+          document.body
+        )}
 
         {/* Render PDF Modal inside Editor View if triggered */}
         {selectedProposalForPDF && (
