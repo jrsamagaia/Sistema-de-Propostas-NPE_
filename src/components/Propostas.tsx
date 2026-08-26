@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Pencil, Trash2, Plus, Save, Settings, X, FileText, Printer, Clock, Send, Loader2, Search, Calendar, Filter, ChevronDown, Layers, CreditCard, Banknote, Landmark } from 'lucide-react';
+import { Pencil, Trash2, Plus, Save, Settings, X, FileText, Printer, Clock, Send, Loader2, Search, Calendar, Filter, ChevronDown, Layers, CreditCard, Banknote, Landmark, Info } from 'lucide-react';
 import { Proposal, Supply, Rate, Status, ProposalItem, Lead, IntegrationSetting, CardInstallmentOption, BoletoInstallmentOption, getInstallmentScheduleText, SupplyVariation } from '../types';
 import PropostaPDFModal from './PropostaPDFModal';
 import AutocompleteSelect from './AutocompleteSelect';
@@ -665,6 +665,7 @@ export default function Propostas({
         paymentInterestPercent: cardInstallmentOptions[0]?.interestPercent != null ? cardInstallmentOptions[0].interestPercent : paymentInterestPercent,
         cardInstallmentOptions: cardInstallmentOptions.length > 0 ? cardInstallmentOptions : [{ id: '1', installments: paymentInstallments, interestPercent: paymentInterestPercent, withEntry: false }],
         boletoInstallmentOptions: boletoInstallmentOptions.length > 0 ? boletoInstallmentOptions : [{ id: '1', installments: 3, interestPercent: 0, withEntry: true }],
+        includeBoletoInstallments,
         paymentDirectTerms: paymentDirectTerms.trim() || undefined,
         paymentCustomText,
         validationDays,
@@ -717,6 +718,7 @@ export default function Propostas({
           withEntry: true
         }];
     setBoletoInstallmentOptions(editBoletoOptions);
+    setIncludeBoletoInstallments(prop.includeBoletoInstallments !== undefined ? prop.includeBoletoInstallments : false);
     setPaymentCustomText(prop.paymentCustomText || '');
     setValidationDays(prop.validationDays != null ? prop.validationDays : 15);
     setDeliveryDays(prop.deliveryDays != null ? prop.deliveryDays : 30);
@@ -754,6 +756,7 @@ export default function Propostas({
     setPaymentInterestPercent(10);
     setCardInstallmentOptions([{ id: '1', installments: 10, interestPercent: 10, withEntry: false }]);
     setBoletoInstallmentOptions([{ id: '1', installments: 3, interestPercent: 0, withEntry: true }]);
+    setIncludeBoletoInstallments(false);
     setPaymentDirectTerms('Entrada, 30 e 60 dias');
     setPaymentCustomText('');
     setValidationDays(15);
@@ -1723,147 +1726,171 @@ export default function Propostas({
                     </div>
                   </div>
 
-                  {/* Parte B: Condições de Parcelamento no Boleto / PIX (Múltiplas Opções) */}
-                  <div className="bg-indigo-50/40 p-4 rounded-xl border border-indigo-100">
-                    <div className="flex items-center justify-between border-b border-indigo-100 pb-2 mb-3">
+                  {/* Parte B: Condições de Parcelamento no Boleto / PIX (Múltiplas Opções - Opcional) */}
+                  <div className={`p-4 rounded-xl border transition-all ${includeBoletoInstallments ? 'bg-indigo-50/40 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-100/60 pb-3 mb-3">
                       <div>
                         <h6 className="font-bold text-xs uppercase tracking-wider text-indigo-950 flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
-                          Condições de Parcelamento no Boleto/PIX
+                          <span className={`w-2 h-2 rounded-full ${includeBoletoInstallments ? 'bg-indigo-600' : 'bg-slate-400'}`}></span>
+                          Condições de Parcelamento no Boleto/PIX (Opcional)
                         </h6>
-                        <p className="text-[11px] text-slate-500">Adicione quantas condições de parcelas e acréscimo/taxas forem necessárias.</p>
+                        <p className="text-[11px] text-slate-500">
+                          Marque o checkbox para listar opções adicionais de parcelamento na proposta além da Entrada & Prazos.
+                        </p>
                       </div>
+
+                      <label className="inline-flex items-center gap-2 cursor-pointer select-none bg-white px-3 py-1.5 rounded-lg border border-indigo-200 shadow-2xs hover:border-indigo-400 transition-colors shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={includeBoletoInstallments}
+                          disabled={!paymentMethodPixBoleto}
+                          onChange={(e) => setIncludeBoletoInstallments(e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                        />
+                        <span className="text-xs font-bold text-indigo-950">
+                          Incluir Parcelamento Boleto/PIX
+                        </span>
+                      </label>
                     </div>
 
-                    <div className="space-y-4">
-                      {boletoInstallmentOptions.map((opt, index) => {
-                        const optTotalComTaxas = ceil2(currentSellPrice * (1 + (opt.interestPercent || 0) / 100));
-                        const optValorParcela = ceil2(optTotalComTaxas / (opt.installments || 1));
-                        const calculatedSchedule = getInstallmentScheduleText(opt.installments, opt.withEntry);
+                    {includeBoletoInstallments ? (
+                      <>
+                        <div className="space-y-4">
+                          {boletoInstallmentOptions.map((opt, index) => {
+                            const optTotalComTaxas = ceil2(currentSellPrice * (1 + (opt.interestPercent || 0) / 100));
+                            const optValorParcela = ceil2(optTotalComTaxas / (opt.installments || 1));
+                            const calculatedSchedule = getInstallmentScheduleText(opt.installments, opt.withEntry);
 
-                        return (
-                          <div key={opt.id || index} className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs relative group">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[11px] font-bold text-indigo-900 bg-indigo-50 px-2.5 py-0.5 rounded uppercase tracking-wide border border-indigo-200">
-                                  Opção #{index + 1} (Boleto/PIX)
-                                </span>
-                                {opt.withEntry && (
-                                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                    1ª Parcela = Entrada
-                                  </span>
-                                )}
-                              </div>
-                              {boletoInstallmentOptions.length > 1 && (
-                                <button
-                                  type="button"
-                                  disabled={!paymentMethodPixBoleto}
-                                  onClick={() => handleRemoveBoletoInstallmentOption(index)}
-                                  className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-md transition-colors cursor-pointer"
-                                  title="Remover esta condição de parcelamento no boleto/PIX"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
-                              )}
-                            </div>
+                            return (
+                              <div key={opt.id || index} className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs relative group">
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[11px] font-bold text-indigo-900 bg-indigo-50 px-2.5 py-0.5 rounded uppercase tracking-wide border border-indigo-200">
+                                      Opção #{index + 1} (Boleto/PIX)
+                                    </span>
+                                    {opt.withEntry && (
+                                      <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                        1ª Parcela = Entrada
+                                      </span>
+                                    )}
+                                  </div>
+                                  {boletoInstallmentOptions.length > 1 && (
+                                    <button
+                                      type="button"
+                                      disabled={!paymentMethodPixBoleto}
+                                      onClick={() => handleRemoveBoletoInstallmentOption(index)}
+                                      className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-md transition-colors cursor-pointer"
+                                      title="Remover esta condição de parcelamento no boleto/PIX"
+                                    >
+                                      <Trash2 size={15} />
+                                    </button>
+                                  )}
+                                </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                              <div>
-                                <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
-                                  Número de Parcelas (Boleto/PIX)
-                                </label>
-                                <input 
-                                  type="number"
-                                  min="1"
-                                  max="36"
-                                  disabled={!paymentMethodPixBoleto}
-                                  value={opt.installments}
-                                  onChange={(e) => handleUpdateBoletoInstallmentOption(index, 'installments', Math.max(1, parseInt(e.target.value) || 1))}
-                                  className="w-full border border-slate-300 bg-white disabled:bg-slate-100 disabled:text-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 font-sans font-semibold"
-                                  placeholder="Ex: 3"
-                                />
-                                <p className="text-[10px] text-slate-400 mt-1">Número de parcelas no boleto/PIX.</p>
-                              </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                  <div>
+                                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
+                                      Número de Parcelas (Boleto/PIX)
+                                    </label>
+                                    <input 
+                                      type="number"
+                                      min="1"
+                                      max="36"
+                                      disabled={!paymentMethodPixBoleto}
+                                      value={opt.installments}
+                                      onChange={(e) => handleUpdateBoletoInstallmentOption(index, 'installments', Math.max(1, parseInt(e.target.value) || 1))}
+                                      className="w-full border border-slate-300 bg-white disabled:bg-slate-100 disabled:text-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 font-sans font-semibold"
+                                      placeholder="Ex: 3"
+                                    />
+                                    <p className="text-[10px] text-slate-400 mt-1">Número de parcelas no boleto/PIX.</p>
+                                  </div>
 
-                              <div>
-                                <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
-                                  Acréscimo / Taxas Boleto (%)
-                                </label>
-                                <input 
-                                  type="number"
-                                  step="0.1"
-                                  min="0"
-                                  disabled={!paymentMethodPixBoleto}
-                                  value={opt.interestPercent}
-                                  onChange={(e) => handleUpdateBoletoInstallmentOption(index, 'interestPercent', Math.max(0, parseFloat(e.target.value) || 0))}
-                                  className="w-full border border-slate-300 bg-white disabled:bg-slate-100 disabled:text-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 font-sans font-semibold"
-                                  placeholder="Ex: 0"
-                                />
-                                <p className="text-[10px] text-slate-400 mt-1">0% para sem acréscimo / taxas.</p>
-                              </div>
+                                  <div>
+                                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
+                                      Acréscimo / Taxas Boleto (%)
+                                    </label>
+                                    <input 
+                                      type="number"
+                                      step="0.1"
+                                      min="0"
+                                      disabled={!paymentMethodPixBoleto}
+                                      value={opt.interestPercent}
+                                      onChange={(e) => handleUpdateBoletoInstallmentOption(index, 'interestPercent', Math.max(0, parseFloat(e.target.value) || 0))}
+                                      className="w-full border border-slate-300 bg-white disabled:bg-slate-100 disabled:text-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 font-sans font-semibold"
+                                      placeholder="Ex: 0"
+                                    />
+                                    <p className="text-[10px] text-slate-400 mt-1">0% para sem acréscimo / taxas.</p>
+                                  </div>
 
-                              <div>
-                                <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
-                                  Valor Final Aprovado (com taxas boleto)
-                                </label>
-                                <div className="rounded-lg shadow-inner bg-slate-50 border border-slate-200 px-3 py-1.5 text-xs text-slate-800 font-mono font-bold flex flex-col justify-center min-h-[38px]">
-                                  <span className="text-slate-900 text-sm">
-                                    {formatMoney(optTotalComTaxas)}
-                                  </span>
-                                  <span className="text-[10px] text-slate-500 font-sans font-medium">
-                                    {opt.installments}x de {formatMoney(optValorParcela)} {opt.interestPercent === 0 ? '(Sem taxas)' : `(+${opt.interestPercent}% taxas)`}
-                                  </span>
+                                  <div>
+                                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
+                                      Valor Final Aprovado (com taxas boleto)
+                                    </label>
+                                    <div className="rounded-lg shadow-inner bg-slate-50 border border-slate-200 px-3 py-1.5 text-xs text-slate-800 font-mono font-bold flex flex-col justify-center min-h-[38px]">
+                                      <span className="text-slate-900 text-sm">
+                                        {formatMoney(optTotalComTaxas)}
+                                      </span>
+                                      <span className="text-[10px] text-slate-500 font-sans font-medium">
+                                        {opt.installments}x de {formatMoney(optValorParcela)} {opt.interestPercent === 0 ? '(Sem taxas)' : `(+${opt.interestPercent}% taxas)`}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Exigir Entrada (1ª parcela para início do projeto) */}
+                                <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 -mx-4 -mb-4 p-3 rounded-b-xl">
+                                  <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                      type="checkbox"
+                                      checked={!!opt.withEntry}
+                                      disabled={!paymentMethodPixBoleto}
+                                      onChange={(e) => handleUpdateBoletoInstallmentOption(index, 'withEntry', e.target.checked)}
+                                      className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                    />
+                                    <span className="text-xs font-bold text-slate-700">
+                                      Exigir Entrada (1ª parcela para início do projeto)
+                                    </span>
+                                  </label>
+
+                                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                                    <span className="text-slate-500 font-medium">Cronograma calculado:</span>
+                                    <span className="font-bold text-indigo-900 bg-white border border-indigo-200 px-2.5 py-1 rounded-md shadow-2xs">
+                                      {calculatedSchedule}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      disabled={!paymentMethodPixBoleto}
+                                      onClick={() => setPaymentDirectTerms(calculatedSchedule)}
+                                      className="text-[11px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2.5 py-1 rounded-md border border-indigo-200 transition-colors cursor-pointer"
+                                      title="Copiar este cronograma para a Condição de Prazos acima"
+                                    >
+                                      Usar na Condição de Prazos
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
+                            );
+                          })}
+                        </div>
 
-                            {/* Exigir Entrada (1ª parcela para início do projeto) */}
-                            <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 -mx-4 -mb-4 p-3 rounded-b-xl">
-                              <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-                                <input
-                                  type="checkbox"
-                                  checked={!!opt.withEntry}
-                                  disabled={!paymentMethodPixBoleto}
-                                  onChange={(e) => handleUpdateBoletoInstallmentOption(index, 'withEntry', e.target.checked)}
-                                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
-                                />
-                                <span className="text-xs font-bold text-slate-700">
-                                  Exigir Entrada (1ª parcela para início do projeto)
-                                </span>
-                              </label>
-
-                              <div className="flex flex-wrap items-center gap-2 text-xs">
-                                <span className="text-slate-500 font-medium">Cronograma calculado:</span>
-                                <span className="font-bold text-indigo-900 bg-white border border-indigo-200 px-2.5 py-1 rounded-md shadow-2xs">
-                                  {calculatedSchedule}
-                                </span>
-                                <button
-                                  type="button"
-                                  disabled={!paymentMethodPixBoleto}
-                                  onClick={() => setPaymentDirectTerms(calculatedSchedule)}
-                                  className="text-[11px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2.5 py-1 rounded-md border border-indigo-200 transition-colors cursor-pointer"
-                                  title="Copiar este cronograma para a Condição de Prazos acima"
-                                >
-                                  Usar na Condição de Prazos
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <div className="mt-3.5 pt-2 border-t border-indigo-100">
-                      <button
-                        type="button"
-                        disabled={!paymentMethodPixBoleto}
-                        onClick={handleAddBoletoInstallmentOption}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Plus size={16} />
-                        Adicionar outra condição de parcelamento (Boleto/PIX)
-                      </button>
-                    </div>
+                        <div className="mt-3.5 pt-2 border-t border-indigo-100">
+                          <button
+                            type="button"
+                            disabled={!paymentMethodPixBoleto}
+                            onClick={handleAddBoletoInstallmentOption}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Plus size={16} />
+                            Adicionar outra condição de parcelamento (Boleto/PIX)
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="p-3 bg-white rounded-lg border border-slate-200 text-slate-600 text-xs flex items-center gap-2">
+                        <Info size={16} className="text-indigo-600 shrink-0" />
+                        <span>Opção desmarcada: Apenas a <strong>Entrada no Pix/Boleto (%)</strong> e os <strong>Prazos</strong> definidos acima serão impressos na proposta comercial.</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2050,6 +2077,7 @@ export default function Propostas({
                       paymentInterestPercent: cardInstallmentOptions[0]?.interestPercent != null ? cardInstallmentOptions[0].interestPercent : paymentInterestPercent,
                       cardInstallmentOptions,
                       boletoInstallmentOptions,
+                      includeBoletoInstallments,
                       paymentDirectTerms,
                       paymentCustomText,
                       validationDays,
@@ -2099,11 +2127,17 @@ export default function Propostas({
                       totalCost: currentTotalCost,
                       sellPrice: currentSellPrice,
                       status: 'Em desenvolvimento',
+                      paymentMethodCash,
+                      paymentMethodCard,
+                      paymentMethodPixBoleto,
+                      paymentMethodInstallments: (paymentMethodCard || paymentMethodPixBoleto),
                       paymentDiscountPercent,
                       paymentEntryPercent,
                       paymentInstallments: cardInstallmentOptions[0]?.installments || paymentInstallments || 10,
                       paymentInterestPercent: cardInstallmentOptions[0]?.interestPercent != null ? cardInstallmentOptions[0].interestPercent : paymentInterestPercent,
                       cardInstallmentOptions,
+                      boletoInstallmentOptions,
+                      includeBoletoInstallments,
                       paymentDirectTerms,
                       paymentCustomText,
                       validationDays,

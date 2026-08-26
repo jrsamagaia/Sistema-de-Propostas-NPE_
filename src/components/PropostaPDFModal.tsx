@@ -214,6 +214,7 @@ export default function PropostaPDFModal({
         interestPercent: 0,
         withEntry: true
       }];
+  const includeBoletoInstallments = proposal.includeBoletoInstallments !== undefined ? proposal.includeBoletoInstallments : false;
   const paymentDirectTerms = proposal.paymentDirectTerms || '';
   const customText = proposal.paymentCustomText || '';
   const paymentMethodCash = proposal.paymentMethodCash !== undefined ? proposal.paymentMethodCash : true;
@@ -1402,7 +1403,10 @@ export default function PropostaPDFModal({
                                       Parcelado (PIX / Boleto)
                                     </p>
                                     <ul className="list-disc pl-4 space-y-1 text-slate-700 font-semibold text-[11px]">
-                                      {boletoInstallmentOptions && boletoInstallmentOptions.length > 0 ? (
+                                      <li>
+                                        {renderPixBoletoTerms(servicesSellPrice, paymentDirectTerms, entryPercent)}
+                                      </li>
+                                      {includeBoletoInstallments && boletoInstallmentOptions && boletoInstallmentOptions.length > 0 && (
                                         boletoInstallmentOptions.map((bOpt, bIdx) => {
                                           const bOptTotal = ceil2(servicesSellPrice * (1 + ((bOpt.interestPercent || 0) / 100)));
                                           const bOptParcela = ceil2(bOptTotal / (bOpt.installments || 1));
@@ -1417,10 +1421,6 @@ export default function PropostaPDFModal({
                                             </li>
                                           );
                                         })
-                                      ) : (
-                                        <li>
-                                          {renderPixBoletoTerms(servicesSellPrice, paymentDirectTerms, entryPercent)}
-                                        </li>
                                       )}
                                     </ul>
                                   </div>
@@ -1671,23 +1671,24 @@ export default function PropostaPDFModal({
                                       PIX / Boleto
                                     </p>
                                     <div className="space-y-0.5 text-[10px] leading-tight pl-2">
-                                      {boletoInstallmentOptions && boletoInstallmentOptions.length > 0 ? (
-                                        boletoInstallmentOptions.map((bOpt, bIdx) => {
-                                          const bOptTotal = ceil2(opt.sellPrice * (1 + ((bOpt.interestPercent || 0) / 100)));
-                                          const bOptParcela = ceil2(bOptTotal / (bOpt.installments || 1));
-                                          const scheduleText = getInstallmentScheduleText(bOpt.installments, bOpt.withEntry);
-                                          return (
-                                            <div key={bIdx}>
-                                              • Até <strong className="text-slate-950">{bOpt.installments}x</strong> de <strong className="text-slate-950">{formatCurrency(bOptParcela)}</strong>
-                                              {bOpt.withEntry ? (
-                                                <strong className="text-indigo-950"> ({scheduleText})</strong>
-                                              ) : null}
-                                              {bOpt.interestPercent > 0 ? ` (${formatCurrency(bOptTotal)} c/ acréscimo)` : ' sem acréscimo'}
-                                            </div>
-                                          );
-                                        })
-                                      ) : (
-                                        <div>{renderPixBoletoTerms(opt.sellPrice, paymentDirectTerms, entryPercent)}</div>
+                                      <div>{renderPixBoletoTerms(opt.sellPrice, paymentDirectTerms, entryPercent)}</div>
+                                      {includeBoletoInstallments && boletoInstallmentOptions && boletoInstallmentOptions.length > 0 && (
+                                        <div className="pt-1 mt-1 border-t border-slate-100/80 space-y-0.5">
+                                          {boletoInstallmentOptions.map((bOpt, bIdx) => {
+                                            const bOptTotal = ceil2(opt.sellPrice * (1 + ((bOpt.interestPercent || 0) / 100)));
+                                            const bOptParcela = ceil2(bOptTotal / (bOpt.installments || 1));
+                                            const scheduleText = getInstallmentScheduleText(bOpt.installments, bOpt.withEntry);
+                                            return (
+                                              <div key={bIdx}>
+                                                • Até <strong className="text-slate-950">{bOpt.installments}x</strong> de <strong className="text-slate-950">{formatCurrency(bOptParcela)}</strong>
+                                                {bOpt.withEntry ? (
+                                                  <strong className="text-indigo-950"> ({scheduleText})</strong>
+                                                ) : null}
+                                                {bOpt.interestPercent > 0 ? ` (${formatCurrency(bOptTotal)} c/ acréscimo)` : ' sem acréscimo'}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
                                       )}
                                     </div>
                                   </div>
