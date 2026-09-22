@@ -227,7 +227,7 @@ export default function PropostaPDFModal({
   const paymentMethodInstallments = proposal.paymentMethodInstallments !== undefined 
     ? proposal.paymentMethodInstallments 
     : (paymentMethodCard || paymentMethodPixBoleto);
-  const paymentDiscountPercent = proposal.paymentDiscountPercent !== undefined ? proposal.paymentDiscountPercent : 5;
+  const paymentDiscountPercent = proposal.paymentDiscountPercent !== undefined ? proposal.paymentDiscountPercent : 0;
 
   // Extract separate product options (quantities) for dynamic pricing split
   const items = proposal.items || [];
@@ -237,10 +237,26 @@ export default function PropostaPDFModal({
   const hasProducts = productItems.length > 0;
   const hasServices = serviceItems.length > 0;
 
+  const isProjetoImpressao = proposal.projectType === 'projeto_impressao';
+  const freightCost = proposal.freightCost !== undefined && proposal.freightCost > 0 ? proposal.freightCost : 0;
+  const isUnifiedProjectPrint = isProjetoImpressao && hasServices && hasProducts;
+
   const totalServicesCost = ceil2(serviceItems.reduce((acc, item) => acc + ceil2(item.cost * item.qty), 0));
   const markupMultiplier = proposal.markupMultiplier !== undefined 
     ? ceil2(proposal.markupMultiplier) 
     : (proposal.sellPrice && proposal.totalCost ? ceil2(proposal.sellPrice / proposal.totalCost) : 1);
+
+  // If there are no products, any freight on the proposal belongs to the services investment
+  const totalServicesSellPrice = ceil2(ceil2(totalServicesCost * markupMultiplier) + (!hasProducts ? freightCost : 0));
+  
+  // For unified project, calculate base products cost from minimum tier item
+  const minProductItem = productItems.length > 0 
+    ? productItems.reduce((min, item) => (item.qty < min.qty ? item : min), productItems[0]) 
+    : null;
+  const totalProductsSellPrice = minProductItem ? ceil2(minProductItem.cost * minProductItem.qty) : 0;
+  
+  const unifiedTotalSellPrice = ceil2(totalServicesSellPrice + totalProductsSellPrice + freightCost);
+  const effectivePage1SellPrice = isUnifiedProjectPrint ? unifiedTotalSellPrice : totalServicesSellPrice;
 
   interface ProductOption {
     id: number;
@@ -253,7 +269,12 @@ export default function PropostaPDFModal({
   }
 
   const productOptions: ProductOption[] = productItems.map(item => {
-    const optionSellPrice = ceil2(item.cost * item.qty);
+    // Each option incorporates its specific shippingCost or the proposal freightCost
+    const itemShipping = (item.shippingCost !== undefined && item.shippingCost > 0)
+      ? ceil2(item.shippingCost)
+      : (freightCost > 0 ? freightCost : 0);
+    const baseOptionCost = ceil2(item.cost * item.qty);
+    const optionSellPrice = ceil2(baseOptionCost + itemShipping);
     return {
       id: item.id || Date.now() + Math.random(),
       qty: item.qty,
@@ -261,7 +282,7 @@ export default function PropostaPDFModal({
       unitPrice: item.qty > 0 ? ceil2(optionSellPrice / item.qty) : 0,
       multiplier: item.multiplier !== undefined ? ceil2(item.multiplier) : undefined,
       baseCost: item.baseCost !== undefined ? ceil2(item.baseCost) : undefined,
-      shippingCost: item.shippingCost !== undefined ? ceil2(item.shippingCost) : undefined
+      shippingCost: itemShipping > 0 ? itemShipping : undefined
     };
   });
 
@@ -1112,9 +1133,11 @@ export default function PropostaPDFModal({
                     {/* PROP HEADER SLOGAN */}
                     <div className="text-center px-4">
                       <h3 className="text-base sm:text-lg font-black text-indigo-950 tracking-normal uppercase leading-tight max-w-lg mx-auto">
-                        {projectType === 'cultural' 
-                          ? 'SEU INVESTIMENTO E CONDIÇÕES - PROJETO CULTURAL' 
-                          : 'SEU INVESTIMENTO E CONDIÇÕES - SERVIÇOS EDITORIAIS'}
+                        {isUnifiedProjectPrint
+                          ? 'SEU INVESTIMENTO E CONDIÇÕES - PROJETO EDITORIAL + IMPRESSÃO'
+                          : projectType === 'cultural' 
+                            ? 'SEU INVESTIMENTO E CONDIÇÕES - PROJETO CULTURAL' 
+                            : 'SEU INVESTIMENTO E CONDIÇÕES - SERVIÇOS EDITORIAIS'}
                       </h3>
                     </div>
 
@@ -1322,6 +1345,29 @@ export default function PropostaPDFModal({
                                       </ul>
                                     </div>
                                   )}
+
+                                  {/* Card de Produção Gráfica e Impressão para Projeto + Impressão */}
+                                  {isUnifiedProjectPrint && (
+                                    <div className="bg-amber-50/70 p-2.5 rounded-lg border border-amber-200 text-left shadow-sm font-sans">
+                                      <div className="flex items-center justify-between border-b border-amber-200/80 pb-1 mb-1">
+                                        <h5 className="font-bold text-[#E21B79] text-[10px] uppercase tracking-wider flex items-center gap-1.5">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-[#E21B79]"></span>
+                                          Produção Gráfica e Impressão Inclusa:
+                                        </h5>
+                                        <span className="text-[10px] font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-amber-200">
+                                          {productItems.map(p => `${p.qty} ${p.qty === 1 ? 'exemplar' : 'exemplares'}`).join(', ')}
+                                        </span>
+                                      </div>
+                                      <p className="text-[11px] text-slate-700 font-semibold leading-relaxed">
+                                        {proposal.bookFeaturesDescription || 'Impressão em alta resolução com controle de qualidade e acabamento profissional da Editora NPE.'}
+                                      </p>
+                                      {freightCost > 0 && (
+                                        <p className="text-[10px] text-amber-800 font-bold mt-1">
+                                          • Frete incluso no investimento total: {formatCurrency(freightCost)}
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })()}
@@ -1332,29 +1378,38 @@ export default function PropostaPDFModal({
 
                     {/* SECT 2: INVESTMENT & PAYMENT CONDITIONS */}
                     <div className="space-y-2">
-                      {/* INVESTMENT BADGE FOR SERVICES */}
+                      {/* INVESTMENT BADGE FOR SERVICES / UNIFIED */}
                       <div className="bg-[#E21B79] text-white rounded-xl py-2 px-6 text-center shadow-md relative overflow-hidden max-w-md mx-auto w-full">
                         <div className="absolute top-0 right-0 w-20 h-20 bg-white/5 rounded-full -mr-5 -mt-5"></div>
                         <div className="absolute bottom-0 left-0 w-12 h-12 bg-white/5 rounded-full -ml-3 -mb-3"></div>
                         
                         <span className="block text-[10px] font-black uppercase tracking-wider text-fuchsia-100 leading-none mb-0.5">
-                          {projectType === 'cultural' 
-                            ? 'INVESTIMENTO TOTAL DO PROJETO CULTURAL:' 
-                            : 'INVESTIMENTO TOTAL EM SERVIÇOS:'}
+                          {isUnifiedProjectPrint
+                            ? 'INVESTIMENTO TOTAL (PROJETO EDITORIAL + IMPRESSÃO):'
+                            : projectType === 'cultural' 
+                              ? 'INVESTIMENTO TOTAL DO PROJETO CULTURAL:' 
+                              : 'INVESTIMENTO TOTAL EM SERVIÇOS:'}
                         </span>
                         <span className="block text-xl sm:text-2xl font-extrabold tracking-tight leading-none font-sans">
-                          {formatCurrency(totalServicesCost * markupMultiplier)}
+                          {formatCurrency(effectivePage1SellPrice)}
                         </span>
+                        {freightCost > 0 && (
+                          <span className="block text-[10px] text-fuchsia-100 font-medium mt-0.5 font-sans">
+                            (Frete incluso: {formatCurrency(freightCost)})
+                          </span>
+                        )}
                       </div>
 
-                      {/* CONDIÇÕES DE PAGAMENTO - SERVIÇOS */}
+                      {/* CONDIÇÕES DE PAGAMENTO - SERVIÇOS OU UNIFICADO */}
                       <div className="space-y-2 text-left">
                         <h4 className="text-xs font-black text-[#E21B79] uppercase tracking-wide border-b border-indigo-100 pb-0.5">
-                          Condições de Pagamento - Serviços*
+                          {isUnifiedProjectPrint 
+                            ? 'Condições de Pagamento - Projeto Editorial + Impressão*' 
+                            : 'Condições de Pagamento - Serviços*'}
                         </h4>
                         
                         {(() => {
-                          const servicesSellPrice = ceil2(totalServicesCost * markupMultiplier);
+                          const servicesSellPrice = effectivePage1SellPrice;
                           const sEntrada = ceil2(servicesSellPrice * (entryPercent / 100));
                           const sEntrega = ceil2(servicesSellPrice * (1 - entryPercent / 100));
                           const sTotalComJuros = ceil2(servicesSellPrice * (1 + (interestPercent / 100)));
@@ -1378,15 +1433,19 @@ export default function PropostaPDFModal({
                                   <div>
                                     <p className="font-bold text-indigo-950 flex items-center gap-1.5 mb-1 text-xs">
                                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                      Pagamento à Vista (com desconto)
+                                      {paymentDiscountPercent > 0 ? 'Pagamento à Vista (com desconto)' : 'Pagamento à Vista'}
                                     </p>
                                     <p className="text-slate-650 font-semibold mb-1 text-[11px]">
-                                      Aproveite o benefício exclusivo de desconto sobre o investimento em serviços:
+                                      {paymentDiscountPercent > 0 
+                                        ? 'Aproveite o benefício exclusivo de desconto sobre o valor do investimento:' 
+                                        : 'Opção de quitação integral no ato da contratação da proposta:'}
                                     </p>
                                     <ul className="list-disc pl-4 space-y-0.5 text-slate-700 font-semibold text-[11px]">
-                                      <li>
-                                        Desconto: <span className="text-slate-900 font-bold">{paymentDiscountPercent}%</span>
-                                      </li>
+                                      {paymentDiscountPercent > 0 && (
+                                        <li>
+                                          Desconto: <span className="text-slate-900 font-bold">{paymentDiscountPercent}%</span>
+                                        </li>
+                                      )}
                                       <li>
                                         Valor à vista: <span className="text-emerald-600 font-extrabold text-xs">{formatCurrency(sTotalComDesconto)}</span>
                                       </li>
@@ -1403,9 +1462,30 @@ export default function PropostaPDFModal({
                                       Parcelado (PIX / Boleto)
                                     </p>
                                     <ul className="list-disc pl-4 space-y-1 text-slate-700 font-semibold text-[11px]">
-                                      <li>
-                                        {renderPixBoletoTerms(servicesSellPrice, paymentDirectTerms, entryPercent)}
-                                      </li>
+                                      {entryPercent > 0 && (
+                                        <li>
+                                          {entryPercent === 100 ? (
+                                            <>Pagamento À VISTA: <strong className="text-slate-950 font-bold">{formatCurrency(ceil2(servicesSellPrice * (entryPercent / 100)))}</strong></>
+                                          ) : (
+                                            <>
+                                              Entrada ({entryPercent}%): <strong className="text-slate-950 font-bold">{formatCurrency(ceil2(servicesSellPrice * (entryPercent / 100)))}</strong>
+                                              {entryPercent < 100 && (
+                                                <span className="text-slate-500 font-normal text-[10px]"> (Saldo de {100 - entryPercent}%: {formatCurrency(ceil2(servicesSellPrice * ((100 - entryPercent) / 100)))})</span>
+                                              )}
+                                            </>
+                                          )}
+                                        </li>
+                                      )}
+                                      {entryPercent < 100 && paymentDirectTerms && paymentDirectTerms.trim() && (
+                                        <li>
+                                          Condição / Prazos: <strong className="text-slate-950 font-bold">{paymentDirectTerms}</strong>
+                                        </li>
+                                      )}
+                                      {!entryPercent && (!paymentDirectTerms || !paymentDirectTerms.trim()) && (!includeBoletoInstallments || !boletoInstallmentOptions || boletoInstallmentOptions.length === 0) && (
+                                        <li>
+                                          {formatCurrency(servicesSellPrice)} via PIX ou Boleto
+                                        </li>
+                                      )}
                                       {includeBoletoInstallments && boletoInstallmentOptions && boletoInstallmentOptions.length > 0 && (
                                         boletoInstallmentOptions.map((bOpt, bIdx) => {
                                           const bOptTotal = ceil2(servicesSellPrice * (1 + ((bOpt.interestPercent || 0) / 100)));
@@ -1462,7 +1542,7 @@ export default function PropostaPDFModal({
                         </p>
 
                         {/* OBSERVAÇÕES / DESCRIÇÃO DAS CONDIÇÕES NO PDF */}
-                        {!hasProducts && customText && (
+                        {(!hasProducts || isUnifiedProjectPrint) && customText && (
                           <div className="bg-amber-50/90 border-l-4 border-[#E21B79] border-y border-r border-amber-200/80 p-2.5 rounded-r-xl text-left shadow-sm mt-1.5">
                             <p className="font-extrabold text-[#E21B79] uppercase text-[10px] tracking-wide mb-0.5 flex items-center gap-1 font-sans">
                               <span className="w-1.5 h-1.5 rounded-full bg-[#E21B79]"></span>
@@ -1505,8 +1585,8 @@ export default function PropostaPDFModal({
               </div>
             )}
 
-            {/* PAGE 2: PRODUÇÃO GRÁFICA, FRETE E CONDIÇÕES DE PAGAMENTO (Only shown if hasProducts is true) */}
-            {hasProducts && (
+            {/* PAGE 2: PRODUÇÃO GRÁFICA, FRETE E CONDIÇÕES DE PAGAMENTO (Only shown if hasProducts is true AND not unified project + print) */}
+            {hasProducts && !isUnifiedProjectPrint && (
               <div 
                 className="print-page w-full bg-[#FAF8F5] text-slate-900 p-6 sm:p-10 shadow-2xl rounded-xl border border-slate-200 relative font-sans flex flex-col justify-between"
                 style={{ height: '29.7cm', color: '#1e293b' }}
@@ -1585,7 +1665,7 @@ export default function PropostaPDFModal({
                             </span>
                             {option.shippingCost !== undefined && option.shippingCost > 0 && (
                               <span className="block text-[9px] text-fuchsia-100 font-bold tracking-wide mt-1 font-sans bg-white/10 rounded py-0.5 px-1.5 max-w-max mx-auto">
-                                Frete: {formatCurrency(option.shippingCost)}
+                                Frete incluso: {formatCurrency(option.shippingCost)}
                               </span>
                             )}
                           </div>
@@ -1593,27 +1673,42 @@ export default function PropostaPDFModal({
                       </div>
 
                       {/* INFORMAÇÕES IMPORTANTES DE FRETE - APENAS PARA O SERVIÇO DO TIPO IMPRESSÃO */}
-                      {productOptions.some(opt => opt.shippingCost !== undefined && opt.shippingCost > 0) && (
+                      {(freightCost > 0 || productOptions.some(opt => opt.shippingCost !== undefined && opt.shippingCost > 0)) && (
                         <div className="bg-amber-50/90 border-l-4 border-[#E21B79] border-y border-r border-amber-200/80 p-2.5 rounded-r-xl text-left shadow-sm font-sans">
                           <p className="font-extrabold text-[#E21B79] uppercase text-[10px] tracking-wide mb-0.5 flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-[#E21B79]"></span>
                             Informações Importantes de Frete:
                           </p>
                           <div className="text-[11px] text-slate-800 font-semibold space-y-0.5">
-                            {productOptions.map(opt => {
-                              const freightVal = opt.shippingCost || 0;
-                              if (freightVal <= 0) return null;
-                              return (
-                                <p key={opt.id} className="flex flex-wrap items-center gap-1">
-                                  <span>
-                                    Valor de Frete {productOptions.length > 1 ? `(${opt.qty} ${opt.qty === 1 ? 'unidade' : 'unidades'})` : ''}: <strong className="text-slate-900">{formatCurrency(freightVal)}</strong>
-                                  </span>
-                                  <span className="text-slate-600 font-normal italic text-[10px]">
-                                    *(o valor do frete pode variar de acordo com a quantidade)
-                                  </span>
-                                </p>
-                              );
-                            })}
+                            {(() => {
+                              const distinctFreights = Array.from(new Set(productOptions.map(opt => opt.shippingCost || freightCost || 0).filter(v => v > 0)));
+                              if (distinctFreights.length === 1) {
+                                return (
+                                  <p className="flex flex-wrap items-center gap-1">
+                                    <span>
+                                      Valor de Frete: <strong className="text-slate-900">{formatCurrency(distinctFreights[0])}</strong>
+                                    </span>
+                                    <span className="text-slate-600 font-normal italic text-[10px]">
+                                      (já incluso no valor de investimento de cada opção acima)
+                                    </span>
+                                  </p>
+                                );
+                              }
+                              return productOptions.map(opt => {
+                                const freightVal = opt.shippingCost || freightCost || 0;
+                                if (freightVal <= 0) return null;
+                                return (
+                                  <p key={opt.id} className="flex flex-wrap items-center gap-1">
+                                    <span>
+                                      Valor de Frete {productOptions.length > 1 ? `(${opt.qty} ${opt.qty === 1 ? 'unidade' : 'unidades'})` : ''}: <strong className="text-slate-900">{formatCurrency(freightVal)}</strong>
+                                    </span>
+                                    <span className="text-slate-600 font-normal italic text-[10px]">
+                                      (já incluso no valor total da opção)
+                                    </span>
+                                  </p>
+                                );
+                              });
+                            })()}
                           </div>
                         </div>
                       )}
@@ -1655,10 +1750,12 @@ export default function PropostaPDFModal({
                                   <div>
                                     <p className="font-bold text-emerald-600 text-[10px] mb-0.5 flex items-center gap-1">
                                       <span className="w-1 h-1 rounded-full bg-emerald-500"></span>
-                                      À Vista (com desconto)
+                                      {paymentDiscountPercent > 0 ? 'À Vista (com desconto)' : 'À Vista'}
                                     </p>
                                     <ul className="list-disc pl-4 space-y-0.5 text-slate-700 font-semibold text-[10px]">
-                                      <li>Desconto: <strong className="text-slate-900">{paymentDiscountPercent}%</strong></li>
+                                      {paymentDiscountPercent > 0 && (
+                                        <li>Desconto: <strong className="text-slate-900">{paymentDiscountPercent}%</strong></li>
+                                      )}
                                       <li>Valor Final: <strong className="text-emerald-600 text-[11px] font-black">{formatCurrency(optTotalComDesconto)}</strong></li>
                                     </ul>
                                   </div>
@@ -1671,7 +1768,28 @@ export default function PropostaPDFModal({
                                       PIX / Boleto
                                     </p>
                                     <div className="space-y-0.5 text-[10px] leading-tight pl-2">
-                                      <div>{renderPixBoletoTerms(opt.sellPrice, paymentDirectTerms, entryPercent)}</div>
+                                      {entryPercent > 0 && (
+                                        <div>
+                                          {entryPercent === 100 ? (
+                                            <>• Pagamento À VISTA: <strong className="text-slate-950 font-bold">{formatCurrency(ceil2(opt.sellPrice * (entryPercent / 100)))}</strong></>
+                                          ) : (
+                                            <>
+                                              • Entrada ({entryPercent}%): <strong className="text-slate-950 font-bold">{formatCurrency(ceil2(opt.sellPrice * (entryPercent / 100)))}</strong>
+                                              {entryPercent < 100 && (
+                                                <span className="text-slate-500 font-normal"> (Saldo: {formatCurrency(ceil2(opt.sellPrice * ((100 - entryPercent) / 100)))})</span>
+                                              )}
+                                            </>
+                                          )}
+                                        </div>
+                                      )}
+                                      {entryPercent < 100 && paymentDirectTerms && paymentDirectTerms.trim() && (
+                                        <div>
+                                          • Prazos: <strong className="text-slate-950 font-bold">{paymentDirectTerms}</strong>
+                                        </div>
+                                      )}
+                                      {!entryPercent && (!paymentDirectTerms || !paymentDirectTerms.trim()) && (!includeBoletoInstallments || !boletoInstallmentOptions || boletoInstallmentOptions.length === 0) && (
+                                        <div>• {formatCurrency(opt.sellPrice)} via PIX / Boleto</div>
+                                      )}
                                       {includeBoletoInstallments && boletoInstallmentOptions && boletoInstallmentOptions.length > 0 && (
                                         <div className="pt-1 mt-1 border-t border-slate-100/80 space-y-0.5">
                                           {boletoInstallmentOptions.map((bOpt, bIdx) => {

@@ -103,12 +103,13 @@ export function getInstallmentScheduleText(installments: number, withEntry?: boo
 export interface Proposal {
   id: number;
   name: string;
-  projectType?: 'editorial' | 'cultural';
+  projectType?: 'editorial' | 'cultural' | 'projeto_impressao';
   date: string;
   validityDate?: string; // Validade da proposta (DD/MM/YYYY)
   items: ProposalItem[];
   totalCost: number;
   sellPrice: number;
+  freightCost?: number; // Valor do Frete geral da proposta
   status: string;
   paymentEntryPercent?: number;
   paymentInstallments?: number;

@@ -200,7 +200,7 @@
         },
         "projectType": {
           "type": "string",
-          "description": "Tipo do projeto (editorial ou cultural)"
+          "description": "Tipo do projeto (editorial, cultural ou projeto_impressao)"
         },
         "date": {
           "type": "string",
@@ -217,6 +217,10 @@
         "sellPrice": {
           "type": "number",
           "description": "Preço final de venda"
+        },
+        "freightCost": {
+          "type": "number",
+          "description": "Valor do frete geral da proposta"
         },
         "status": {
           "type": "string",

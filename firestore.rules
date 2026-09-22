@@ -91,6 +91,7 @@ service cloud.firestore {
              (data.totalCost >= 0) &&
              (data.sellPrice is float || data.sellPrice is int) &&
              (data.sellPrice >= 0) &&
+             (!('freightCost' in data) || data.freightCost == null || data.freightCost is float || data.freightCost is int) &&
              (data.items is list) &&
              (data.items.size() <= 150) &&
              (!('projectType' in data) || data.projectType == null || data.projectType is string) &&

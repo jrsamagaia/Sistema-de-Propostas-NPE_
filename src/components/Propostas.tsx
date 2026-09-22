@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Pencil, Trash2, Plus, Save, Settings, X, FileText, Printer, Clock, Send, Loader2, Search, Calendar, Filter, ChevronDown, ChevronUp, Layers, CreditCard, Banknote, Landmark, Info } from 'lucide-react';
+import { Pencil, Trash2, Plus, Save, Settings, X, FileText, Printer, Clock, Send, Loader2, Search, Calendar, Filter, ChevronDown, ChevronUp, Layers, CreditCard, Banknote, Landmark, Info, Truck, Sparkles } from 'lucide-react';
 import { Proposal, Supply, Rate, Status, ProposalItem, Lead, IntegrationSetting, CardInstallmentOption, BoletoInstallmentOption, getInstallmentScheduleText, SupplyVariation } from '../types';
 import PropostaPDFModal from './PropostaPDFModal';
 import AutocompleteSelect from './AutocompleteSelect';
@@ -39,7 +39,7 @@ export default function Propostas({
 }: PropostasProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [proposalName, setProposalName] = useState('');
-  const [projectType, setProjectType] = useState<'editorial' | 'cultural'>('editorial');
+  const [projectType, setProjectType] = useState<'editorial' | 'cultural' | 'projeto_impressao'>('editorial');
   const [items, setItems] = useState<ProposalItem[]>([]);
   const [editingProposalId, setEditingProposalId] = useState<number | null>(null);
 
@@ -133,15 +133,16 @@ export default function Propostas({
       setSelectedSupplyId('');
       setQuantity(1);
       setPaymentMethodCash(true);
-      setPaymentMethodCard(true);
-      setPaymentMethodPixBoleto(true);
-      setPaymentDiscountPercent(5);
+      setPaymentMethodCard(false);
+      setPaymentMethodPixBoleto(false);
+      setPaymentDiscountPercent(0);
       setPaymentEntryPercent(50);
       setPaymentInstallments(10);
       setPaymentInterestPercent(10);
       setCardInstallmentOptions([{ id: '1', installments: 10, interestPercent: 10, withEntry: false }]);
       setBoletoInstallmentOptions([{ id: '1', installments: 3, interestPercent: 0, withEntry: true }]);
-      setPaymentDirectTerms('Entrada, 30 e 60 dias');
+      setPaymentDirectTerms('Entrada (50%) + Na entrega (50%)');
+      setProposalFreight('');
       setPaymentCustomText('');
       setValidationDays(15);
       setDeliveryDays(30);
@@ -198,7 +199,8 @@ export default function Propostas({
         : (proposalToEdit.paymentMethodInstallments !== undefined ? proposalToEdit.paymentMethodInstallments : true);
       setPaymentMethodCard(isCardActive);
       setPaymentMethodPixBoleto(isPixBoletoActive);
-      setPaymentDiscountPercent(proposalToEdit.paymentDiscountPercent !== undefined ? proposalToEdit.paymentDiscountPercent : 5);
+      setPaymentDiscountPercent(proposalToEdit.paymentDiscountPercent !== undefined ? proposalToEdit.paymentDiscountPercent : 0);
+      setProposalFreight(proposalToEdit.freightCost !== undefined && proposalToEdit.freightCost > 0 ? proposalToEdit.freightCost : '');
       setPaymentEntryPercent(proposalToEdit.paymentEntryPercent != null ? proposalToEdit.paymentEntryPercent : 50);
       setPaymentInstallments(proposalToEdit.paymentInstallments != null ? proposalToEdit.paymentInstallments : 10);
       setPaymentInterestPercent(proposalToEdit.paymentInterestPercent != null ? proposalToEdit.paymentInterestPercent : 10);
@@ -291,11 +293,14 @@ export default function Propostas({
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
 
+  // Freight cost
+  const [proposalFreight, setProposalFreight] = useState<number | ''>('');
+
   // Conditions of payment states
   const [paymentMethodCash, setPaymentMethodCash] = useState<boolean>(true);
-  const [paymentMethodCard, setPaymentMethodCard] = useState<boolean>(true);
-  const [paymentMethodPixBoleto, setPaymentMethodPixBoleto] = useState<boolean>(true);
-  const [paymentDiscountPercent, setPaymentDiscountPercent] = useState<number>(5);
+  const [paymentMethodCard, setPaymentMethodCard] = useState<boolean>(false);
+  const [paymentMethodPixBoleto, setPaymentMethodPixBoleto] = useState<boolean>(false);
+  const [paymentDiscountPercent, setPaymentDiscountPercent] = useState<number>(0);
   const [paymentEntryPercent, setPaymentEntryPercent] = useState<number>(50);
   const [paymentInstallments, setPaymentInstallments] = useState<number>(10);
   const [paymentInterestPercent, setPaymentInterestPercent] = useState<number>(10);
@@ -306,9 +311,25 @@ export default function Propostas({
     { id: '1', installments: 3, interestPercent: 0, withEntry: true }
   ]);
   const [includeBoletoInstallments, setIncludeBoletoInstallments] = useState<boolean>(false);
-  const [paymentDirectTerms, setPaymentDirectTerms] = useState<string>('Entrada, 30 e 60 dias');
+  const [paymentDirectTerms, setPaymentDirectTerms] = useState<string>('Entrada (50%) + Na entrega (50%)');
   const [paymentCustomText, setPaymentCustomText] = useState<string>('');
   const [isFloatingMenuOpen, setIsFloatingMenuOpen] = useState<boolean>(true);
+
+  // Business presets
+  const applyProductPaymentDefaults = () => {
+    setPaymentMethodCash(false);
+    setPaymentMethodCard(true);
+    setPaymentMethodPixBoleto(true);
+    setPaymentEntryPercent(50);
+    setPaymentDirectTerms('Entrada (50%) + Na entrega (50%)');
+  };
+
+  const applyServicePaymentDefaults = () => {
+    setPaymentMethodCash(true);
+    setPaymentMethodCard(false);
+    setPaymentMethodPixBoleto(false);
+    setPaymentDiscountPercent(0);
+  };
 
   const handleAddCardInstallmentOption = () => {
     const lastOption = cardInstallmentOptions[cardInstallmentOptions.length - 1];
@@ -471,7 +492,20 @@ export default function Propostas({
         shippingCost: finalShippingCost,
         shippingQty: shippingQtyVal
       };
-      setItems([...items, newItem]);
+
+      const nextItems = [...items, newItem];
+      const onlyProducts = nextItems.length > 0 && nextItems.every(i => i.type === 'produto');
+      const onlyServices = nextItems.length > 0 && nextItems.every(i => i.type !== 'produto');
+
+      if (items.length === 0) {
+        if (onlyProducts) {
+          applyProductPaymentDefaults();
+        } else if (onlyServices) {
+          applyServicePaymentDefaults();
+        }
+      }
+
+      setItems(nextItems);
     }
     
     setSelectedSupplyId('');
@@ -513,6 +547,10 @@ export default function Propostas({
       };
     });
 
+    if (items.length === 0) {
+      applyProductPaymentDefaults();
+    }
+
     setItems(prev => [...prev, ...newItems]);
     showNotification(`${newItems.length} variação(ões) de "${supply.description}" incluída(s) na proposta!`);
     handleSupplyChange('');
@@ -539,6 +577,10 @@ export default function Propostas({
       shippingCost: undefined,
       shippingQty: undefined
     };
+
+    if (items.length === 0) {
+      applyProductPaymentDefaults();
+    }
 
     setItems(prev => [...prev, newItem]);
     showNotification(`Variação de ${v.quantity} ${vUnit}s incluída na proposta!`);
@@ -589,18 +631,20 @@ export default function Propostas({
       mProductCost = ceil2(mQtyItem.cost * mQtyItem.qty);
     }
 
+    const freightValue = typeof proposalFreight === 'number' && !isNaN(proposalFreight) && proposalFreight > 0 ? ceil2(proposalFreight) : 0;
+
     let totalCost = 0;
     let sellPrice = 0;
 
     if (pItems.length > 0 && sItems.length === 0) {
-      totalCost = mProductCost;
-      sellPrice = mProductCost;
+      totalCost = ceil2(mProductCost + freightValue);
+      sellPrice = ceil2(mProductCost + freightValue);
     } else if (sItems.length > 0 && pItems.length === 0) {
-      totalCost = sCost;
-      sellPrice = ceil2(sCost * markupMultiplier);
+      totalCost = ceil2(sCost + freightValue);
+      sellPrice = ceil2(ceil2(sCost * markupMultiplier) + freightValue);
     } else {
-      totalCost = ceil2(sCost + mProductCost);
-      sellPrice = ceil2((sCost * markupMultiplier) + mProductCost);
+      totalCost = ceil2(sCost + mProductCost + freightValue);
+      sellPrice = ceil2(ceil2(sCost * markupMultiplier) + mProductCost + freightValue);
     }
 
     if (editingProposalId) {
@@ -615,6 +659,7 @@ export default function Propostas({
           items: [...items],
           totalCost,
           sellPrice,
+          freightCost: freightValue > 0 ? freightValue : undefined,
           paymentMethodCash,
           paymentMethodCard,
           paymentMethodPixBoleto,
@@ -626,7 +671,7 @@ export default function Propostas({
           cardInstallmentOptions: cardInstallmentOptions.length > 0 ? cardInstallmentOptions : [{ id: '1', installments: paymentInstallments, interestPercent: paymentInterestPercent, withEntry: false }],
           boletoInstallmentOptions: boletoInstallmentOptions.length > 0 ? boletoInstallmentOptions : [{ id: '1', installments: 3, interestPercent: 0, withEntry: true }],
           includeBoletoInstallments,
-          paymentDirectTerms: paymentDirectTerms.trim() || undefined,
+          paymentDirectTerms: paymentEntryPercent === 100 ? undefined : (paymentDirectTerms.trim() || undefined),
           paymentCustomText,
           validationDays,
           deliveryDays,
@@ -656,6 +701,7 @@ export default function Propostas({
         items: [...items],
         totalCost,
         sellPrice,
+        freightCost: freightValue > 0 ? freightValue : undefined,
         status: defaultStatus,
         paymentMethodCash,
         paymentMethodCard,
@@ -668,7 +714,7 @@ export default function Propostas({
         cardInstallmentOptions: cardInstallmentOptions.length > 0 ? cardInstallmentOptions : [{ id: '1', installments: paymentInstallments, interestPercent: paymentInterestPercent, withEntry: false }],
         boletoInstallmentOptions: boletoInstallmentOptions.length > 0 ? boletoInstallmentOptions : [{ id: '1', installments: 3, interestPercent: 0, withEntry: true }],
         includeBoletoInstallments,
-        paymentDirectTerms: paymentDirectTerms.trim() || undefined,
+        paymentDirectTerms: paymentEntryPercent === 100 ? undefined : (paymentDirectTerms.trim() || undefined),
         paymentCustomText,
         validationDays,
         deliveryDays,
@@ -689,6 +735,7 @@ export default function Propostas({
 
   const handlePrintProposalPDF = () => {
     if (proposalName.trim() && items.length > 0) {
+      const freightValue = (typeof proposalFreight === 'number' && !isNaN(proposalFreight) && proposalFreight > 0) ? proposalFreight : undefined;
       const currentProp: Proposal = {
         id: editingProposalId || Date.now(),
         name: proposalName,
@@ -697,6 +744,7 @@ export default function Propostas({
         items: [...items],
         totalCost: currentTotalCost,
         sellPrice: currentSellPrice,
+        freightCost: freightValue,
         status: 'Em desenvolvimento',
         paymentMethodCash,
         paymentMethodCard,
@@ -709,7 +757,7 @@ export default function Propostas({
         cardInstallmentOptions,
         boletoInstallmentOptions,
         includeBoletoInstallments,
-        paymentDirectTerms,
+        paymentDirectTerms: paymentEntryPercent === 100 ? '' : paymentDirectTerms,
         paymentCustomText,
         validationDays,
         deliveryDays,
@@ -738,6 +786,7 @@ export default function Propostas({
 
       if (!isConfigValid) return;
 
+      const freightValue = (typeof proposalFreight === 'number' && !isNaN(proposalFreight) && proposalFreight > 0) ? proposalFreight : undefined;
       const currentProp: Proposal = {
         id: editingProposalId || Date.now(),
         name: proposalName,
@@ -746,6 +795,7 @@ export default function Propostas({
         items: [...items],
         totalCost: currentTotalCost,
         sellPrice: currentSellPrice,
+        freightCost: freightValue,
         status: 'Em desenvolvimento',
         paymentMethodCash,
         paymentMethodCard,
@@ -758,7 +808,7 @@ export default function Propostas({
         cardInstallmentOptions,
         boletoInstallmentOptions,
         includeBoletoInstallments,
-        paymentDirectTerms,
+        paymentDirectTerms: paymentEntryPercent === 100 ? '' : paymentDirectTerms,
         paymentCustomText,
         validationDays,
         deliveryDays,
@@ -782,16 +832,17 @@ export default function Propostas({
     setProposalName(prop.name);
     setProjectType(prop.projectType || 'editorial');
     setItems([...prop.items]);
+    setProposalFreight(prop.freightCost !== undefined && prop.freightCost > 0 ? prop.freightCost : '');
     setPaymentMethodCash(prop.paymentMethodCash !== undefined ? prop.paymentMethodCash : true);
     const isCard = prop.paymentMethodCard !== undefined ? prop.paymentMethodCard : (prop.paymentMethodInstallments !== undefined ? prop.paymentMethodInstallments : true);
     const isPixBoleto = prop.paymentMethodPixBoleto !== undefined ? prop.paymentMethodPixBoleto : (prop.paymentMethodInstallments !== undefined ? prop.paymentMethodInstallments : true);
     setPaymentMethodCard(isCard);
     setPaymentMethodPixBoleto(isPixBoleto);
-    setPaymentDiscountPercent(prop.paymentDiscountPercent !== undefined ? prop.paymentDiscountPercent : 5);
+    setPaymentDiscountPercent(prop.paymentDiscountPercent !== undefined ? prop.paymentDiscountPercent : 0);
     setPaymentEntryPercent(prop.paymentEntryPercent != null ? prop.paymentEntryPercent : 50);
     setPaymentInstallments(prop.paymentInstallments != null ? prop.paymentInstallments : 10);
     setPaymentInterestPercent(prop.paymentInterestPercent != null ? prop.paymentInterestPercent : 10);
-    setPaymentDirectTerms(prop.paymentDirectTerms || 'Entrada, 30 e 60 dias');
+    setPaymentDirectTerms(prop.paymentEntryPercent === 100 ? '' : (prop.paymentDirectTerms || 'Entrada, 30 e 60 dias'));
     const editCardOptions: CardInstallmentOption[] = (prop.cardInstallmentOptions && prop.cardInstallmentOptions.length > 0)
       ? prop.cardInstallmentOptions
       : [{
@@ -840,16 +891,17 @@ export default function Propostas({
     setSelectedSupplyId('');
     setQuantity(1);
     setPaymentMethodCash(true);
-    setPaymentMethodCard(true);
-    setPaymentMethodPixBoleto(true);
-    setPaymentDiscountPercent(5);
+    setPaymentMethodCard(false);
+    setPaymentMethodPixBoleto(false);
+    setPaymentDiscountPercent(0);
     setPaymentEntryPercent(50);
     setPaymentInstallments(10);
     setPaymentInterestPercent(10);
     setCardInstallmentOptions([{ id: '1', installments: 10, interestPercent: 10, withEntry: false }]);
     setBoletoInstallmentOptions([{ id: '1', installments: 3, interestPercent: 0, withEntry: true }]);
     setIncludeBoletoInstallments(false);
-    setPaymentDirectTerms('Entrada, 30 e 60 dias');
+    setPaymentDirectTerms('Entrada (50%) + Na entrega (50%)');
+    setProposalFreight('');
     setPaymentCustomText('');
     setValidationDays(15);
     setDeliveryDays(30);
@@ -874,18 +926,20 @@ export default function Propostas({
     minProductCost = ceil2(minQtyItem.cost * minQtyItem.qty);
   }
 
+  const currentFreightVal = typeof proposalFreight === 'number' && !isNaN(proposalFreight) && proposalFreight > 0 ? ceil2(proposalFreight) : 0;
+
   let currentTotalCost = 0;
   let currentSellPrice = 0;
 
   if (productItems.length > 0 && serviceItems.length === 0) {
-    currentTotalCost = minProductCost;
-    currentSellPrice = minProductCost;
+    currentTotalCost = ceil2(minProductCost + currentFreightVal);
+    currentSellPrice = ceil2(minProductCost + currentFreightVal);
   } else if (serviceItems.length > 0 && productItems.length === 0) {
-    currentTotalCost = currentServicesCost;
-    currentSellPrice = ceil2(currentServicesCost * markupMultiplier);
+    currentTotalCost = ceil2(currentServicesCost + currentFreightVal);
+    currentSellPrice = ceil2(ceil2(currentServicesCost * markupMultiplier) + currentFreightVal);
   } else {
-    currentTotalCost = ceil2(currentServicesCost + minProductCost);
-    currentSellPrice = ceil2((currentServicesCost * markupMultiplier) + minProductCost);
+    currentTotalCost = ceil2(currentServicesCost + minProductCost + currentFreightVal);
+    currentSellPrice = ceil2(ceil2(currentServicesCost * markupMultiplier) + minProductCost + currentFreightVal);
   }
 
   const isApprovedStatus = showOnlyApproved || (editingProposalId !== null && proposals.find(p => p.id === editingProposalId)?.status?.toLowerCase().includes('aprovad'));
@@ -914,7 +968,7 @@ export default function Propostas({
             <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
               Tipo de Projeto <span className="text-red-500 font-semibold">*</span>
             </label>
-            <div className="flex items-center gap-6">
+            <div className="flex flex-wrap items-center gap-6">
               <label className="inline-flex items-center gap-2 cursor-pointer font-semibold text-sm text-slate-700 select-none">
                 <input
                   type="radio"
@@ -937,11 +991,27 @@ export default function Propostas({
                 />
                 <span>Projeto Cultural</span>
               </label>
+              <label className="inline-flex items-center gap-2 cursor-pointer font-semibold text-sm text-[#E21B79] select-none">
+                <input
+                  type="radio"
+                  name="projectType"
+                  value="projeto_impressao"
+                  checked={projectType === 'projeto_impressao'}
+                  onChange={() => setProjectType('projeto_impressao')}
+                  className="w-4 h-4 text-[#E21B79] focus:ring-[#E21B79] cursor-pointer"
+                />
+                <span className="flex items-center gap-1.5 font-bold">
+                  Projeto + Impressão
+                  <span className="text-[10px] bg-pink-100 text-[#E21B79] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Unificado</span>
+                </span>
+              </label>
             </div>
           </div>
           <div className="text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 font-sans max-w-sm">
             {projectType === 'editorial' ? (
               <span>Exibe relatório conceitual consolidado no PDF.</span>
+            ) : projectType === 'projeto_impressao' ? (
+              <span className="text-[#E21B79] font-semibold">Unifica serviços editoriais e impressão gráfica em um único investimento total no PDF.</span>
             ) : (
               <span>Exibe cada item de serviço com seu valor total individual no PDF.</span>
             )}
@@ -1473,9 +1543,49 @@ export default function Propostas({
               </table>
             </div>
 
+            {/* Campo Valor do Frete da Proposta */}
+            <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200">
+                  <Truck size={20} />
+                </div>
+                <div>
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-slate-700">Valor do Frete da Proposta (R$)</h5>
+                  <p className="text-[11px] text-slate-500">Informe o valor do frete para ser contabilizado automaticamente no custo e no preço total do orçamento.</p>
+                </div>
+              </div>
+              <div className="w-full sm:w-64">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">R$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0,00"
+                    value={proposalFreight}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value) || 0);
+                      setProposalFreight(val);
+                    }}
+                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-mono font-bold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+                {typeof proposalFreight === 'number' && proposalFreight > 0 && (
+                  <p className="text-[10px] text-emerald-600 font-semibold mt-1 text-right">
+                    + {formatMoney(proposalFreight)} somado ao orçamento
+                  </p>
+                )}
+              </div>
+            </div>
+
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 flex flex-col lg:flex-row justify-between items-center gap-6">
               <div className="text-slate-500 text-sm max-w-md text-center lg:text-left font-medium">
-                <p>O preço de venda é calculado automaticamente dividindo o Custo Total pelo fator correspondente às suas taxas cadastradas na aba Custos Fixos.</p>
+                <p>O preço de venda é calculado automaticamente somando os custos com o frete e aplicando a margem de markup e taxas cadastradas.</p>
+                {typeof proposalFreight === 'number' && proposalFreight > 0 && (
+                  <p className="text-xs text-amber-700 mt-1.5 font-bold flex items-center gap-1.5">
+                    <Truck size={14} /> Frete incluso: {formatMoney(proposalFreight)}
+                  </p>
+                )}
               </div>
               <div className="flex gap-6 items-center flex-col md:flex-row">
                 <div className="text-center md:text-right">
@@ -1492,10 +1602,30 @@ export default function Propostas({
             
             {/* Seção 1: Condições de Pagamento */}
             <div className="mt-8 border-t border-slate-200 pt-6 space-y-4 font-sans text-left">
-              <h4 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                <FileText size={20} className="text-[#E21B79]" />
-                Condições de Pagamento da Proposta
-              </h4>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h4 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                  <FileText size={20} className="text-[#E21B79]" />
+                  Condições de Pagamento da Proposta
+                </h4>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={applyServicePaymentDefaults}
+                    className="text-xs font-semibold px-2.5 py-1 rounded bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 transition-colors cursor-pointer"
+                    title="Apenas à vista sem desconto"
+                  >
+                    Padrão Serviços (À Vista)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={applyProductPaymentDefaults}
+                    className="text-xs font-semibold px-2.5 py-1 rounded bg-pink-50 hover:bg-pink-100 border border-pink-200 text-[#E21B79] transition-colors cursor-pointer"
+                    title="Cartão + PIX/Boleto (50% de entrada)"
+                  >
+                    Padrão Produtos (Cartão + Boleto/PIX)
+                  </button>
+                </div>
+              </div>
 
               {/* Checkboxes de seleção das 3 modalidades */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl">
@@ -1714,9 +1844,9 @@ export default function Propostas({
                               </span>
                               <button
                                 type="button"
-                                disabled={!paymentMethodPixBoleto}
+                                disabled={!paymentMethodPixBoleto || paymentEntryPercent === 100}
                                 onClick={() => setPaymentDirectTerms(calculatedSchedule)}
-                                className="text-[11px] bg-white hover:bg-pink-50 text-pink-700 font-bold px-2.5 py-1 rounded-md border border-pink-200 transition-colors cursor-pointer disabled:opacity-50"
+                                className="text-[11px] bg-white hover:bg-pink-50 text-pink-700 font-bold px-2.5 py-1 rounded-md border border-pink-200 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Copiar este cronograma para o campo de Prazos no PIX/Boleto"
                               >
                                 Usar no PIX/Boleto
@@ -1776,12 +1906,18 @@ export default function Propostas({
                           max="100"
                           disabled={!paymentMethodPixBoleto}
                           value={paymentEntryPercent}
-                          onChange={(e) => setPaymentEntryPercent(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                            setPaymentEntryPercent(val);
+                            if (val === 100) {
+                              setPaymentDirectTerms('');
+                            }
+                          }}
                           className="w-full border border-slate-300 bg-white disabled:bg-slate-100 disabled:text-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 font-sans"
                           placeholder="Ex: 50"
                         />
                         <p className="text-[10px] text-slate-400 mt-1">
-                          {paymentEntryPercent === 100 ? 'Pagamento integral no ato.' : `Restante (${100 - paymentEntryPercent}%) na entrega ou conforme os prazos.`}
+                          {paymentEntryPercent === 100 ? 'Pagamento integral no ato (100% à vista).' : `Restante (${100 - paymentEntryPercent}%) na entrega ou conforme os prazos.`}
                         </p>
                       </div>
 
@@ -1789,11 +1925,15 @@ export default function Propostas({
                         <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Condição de Prazos (PIX / Boleto / Faturamento)</label>
                         <input 
                           type="text"
-                          disabled={!paymentMethodPixBoleto}
-                          value={paymentDirectTerms}
+                          disabled={!paymentMethodPixBoleto || paymentEntryPercent === 100}
+                          value={paymentEntryPercent === 100 ? '' : paymentDirectTerms}
                           onChange={(e) => setPaymentDirectTerms(e.target.value)}
-                          className="w-full border border-slate-300 bg-white disabled:bg-slate-100 disabled:text-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 font-sans font-semibold text-slate-800"
-                          placeholder="Ex: Entrada, 30 e 60 dias"
+                          className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none font-sans font-semibold ${
+                            (!paymentMethodPixBoleto || paymentEntryPercent === 100)
+                              ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                              : 'border-slate-300 bg-white text-slate-800 focus:border-indigo-500'
+                          }`}
+                          placeholder={paymentEntryPercent === 100 ? 'Não aplicável para pagamento integral (100% à vista)' : 'Ex: Entrada, 30 e 60 dias'}
                         />
                         <div className="flex flex-wrap gap-1.5 mt-1.5">
                           <span className="text-[10px] text-slate-400 self-center">Sugestões rápidas:</span>
@@ -1806,9 +1946,9 @@ export default function Propostas({
                             <button
                               key={suggestion}
                               type="button"
-                              disabled={!paymentMethodPixBoleto}
+                              disabled={!paymentMethodPixBoleto || paymentEntryPercent === 100}
                               onClick={() => setPaymentDirectTerms(suggestion)}
-                              className="text-[10px] bg-white hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 border border-slate-200 text-slate-600 px-2 py-0.5 rounded transition-colors cursor-pointer"
+                              className="text-[10px] bg-white hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 border border-slate-200 text-slate-600 px-2 py-0.5 rounded transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {suggestion}
                             </button>
