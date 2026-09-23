@@ -36,6 +36,7 @@ import Propostas from './components/Propostas';
 import Configuracoes from './components/Configuracoes';
 import CalculadoraLaudas from './components/CalculadoraLaudas';
 import Leads from './components/Leads';
+import CloneIcon from './components/CloneIcon';
 
 // --- GOOGLE FIREBASE DIRECT INTEGRATION ---
 import { db, auth, handleFirestoreError, OperationType } from './firebase';
@@ -165,7 +166,7 @@ export default function App() {
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [settings, setSettings] = useState<IntegrationSetting[]>([]);
-  const [proposalToEdit, setProposalToEdit] = useState<Proposal | 'new' | null>(null);
+  const [proposalToEdit, setProposalToEdit] = useState<Proposal | 'new' | 'clone' | null>(null);
 
   const totalFixedCosts = ceil2(fixedCosts.reduce((acc, curr) => acc + curr.value, 0));
   const totalRatesPercent = ceil2(rates.reduce((acc, curr) => acc + curr.percentage, 0));
@@ -852,16 +853,29 @@ export default function App() {
             </h1>
           </div>
           
-          <button
-            onClick={() => {
-              setProposalToEdit('new');
-              setActiveTab('propostas');
-            }}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs hover:shadow-sm transition-all cursor-pointer whitespace-nowrap"
-          >
-            <Plus size={14} />
-            <span>Nova Proposta</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setProposalToEdit('new');
+                setActiveTab('propostas');
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs hover:shadow-sm transition-all cursor-pointer whitespace-nowrap"
+            >
+              <Plus size={14} />
+              <span>Nova Proposta</span>
+            </button>
+            <button
+              onClick={() => {
+                setProposalToEdit('clone');
+                setActiveTab('propostas');
+              }}
+              className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs hover:shadow-sm transition-all cursor-pointer whitespace-nowrap"
+              title="Clonar Proposta Existente"
+            >
+              <CloneIcon size={14} />
+              <span>Clonar Proposta</span>
+            </button>
+          </div>
         </header>
 
         {/* Mobile menu header */}
@@ -879,16 +893,29 @@ export default function App() {
             </h1>
           </div>
 
-          <button
-            onClick={() => {
-              setProposalToEdit('new');
-              setActiveTab('propostas');
-            }}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded text-[11px] font-semibold flex items-center gap-1 shadow-sm transition-all"
-          >
-            <Plus size={13} />
-            <span>Nova</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => {
+                setProposalToEdit('new');
+                setActiveTab('propostas');
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded text-[11px] font-semibold flex items-center gap-1 shadow-sm transition-all"
+            >
+              <Plus size={13} />
+              <span>Nova</span>
+            </button>
+            <button
+              onClick={() => {
+                setProposalToEdit('clone');
+                setActiveTab('propostas');
+              }}
+              className="bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded text-[11px] font-semibold flex items-center gap-1 shadow-sm transition-all"
+              title="Clonar Proposta"
+            >
+              <CloneIcon size={13} />
+              <span>Clonar</span>
+            </button>
+          </div>
         </header>
 
         {/* Main Content Pane */}

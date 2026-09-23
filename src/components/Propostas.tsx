@@ -4,6 +4,7 @@ import { Pencil, Trash2, Plus, Save, Settings, X, FileText, Printer, Clock, Send
 import { Proposal, Supply, Rate, Status, ProposalItem, Lead, IntegrationSetting, CardInstallmentOption, BoletoInstallmentOption, getInstallmentScheduleText, SupplyVariation } from '../types';
 import PropostaPDFModal from './PropostaPDFModal';
 import AutocompleteSelect from './AutocompleteSelect';
+import CloneIcon from './CloneIcon';
 import { ceil2, formatMoney, formatCurrency } from '../utils/math';
 
 interface PropostasProps {
@@ -17,7 +18,7 @@ interface PropostasProps {
   saveProposal: (proposal: Proposal) => void;
   removeProposal: (id: number) => void;
   showNotification: (msg: string) => void;
-  proposalToEdit?: Proposal | 'new' | null;
+  proposalToEdit?: Proposal | 'new' | 'clone' | null;
   onClearProposalToEdit?: () => void;
   showOnlyApproved?: boolean;
 }
@@ -42,6 +43,12 @@ export default function Propostas({
   const [projectType, setProjectType] = useState<'editorial' | 'cultural' | 'projeto_impressao'>('editorial');
   const [items, setItems] = useState<ProposalItem[]>([]);
   const [editingProposalId, setEditingProposalId] = useState<number | null>(null);
+  const [isClonedProposal, setIsClonedProposal] = useState(false);
+  const [isCloneSelectorOpen, setIsCloneSelectorOpen] = useState(false);
+  const [isCloneNameModalOpen, setIsCloneNameModalOpen] = useState(false);
+  const [cloneSearchTerm, setCloneSearchTerm] = useState('');
+  const [sourceProposalToClone, setSourceProposalToClone] = useState<Proposal | null>(null);
+  const [newClonedName, setNewClonedName] = useState('');
 
   // Proposal Creation & Validity Dates
   const [proposalDate, setProposalDate] = useState<string>(() => {
@@ -118,8 +125,17 @@ export default function Propostas({
   useEffect(() => {
     if (!proposalToEdit) return;
 
+    if (proposalToEdit === 'clone') {
+      setIsCloneSelectorOpen(true);
+      if (onClearProposalToEdit) {
+        onClearProposalToEdit();
+      }
+      return;
+    }
+
     if (proposalToEdit === 'new') {
       setIsCreating(true);
+      setIsClonedProposal(false);
       setProposalName('');
       setProjectType('editorial');
       const todayISO = formatToISO(new Date().toLocaleDateString('pt-BR'));
@@ -647,7 +663,7 @@ export default function Propostas({
       sellPrice = ceil2(ceil2(sCost * markupMultiplier) + mProductCost + freightValue);
     }
 
-    if (editingProposalId) {
+    if (editingProposalId && !isClonedProposal) {
       const existingProp = proposals.find(p => p.id === editingProposalId);
       if (existingProp) {
         saveProposal({
@@ -729,7 +745,9 @@ export default function Propostas({
         approvedDate: undefined
       });
       setEditingProposalId(newId);
-      showNotification('Proposta oficial salva com sucesso! Botão do PDF habilitado abaixo.');
+      const wasCloned = isClonedProposal;
+      setIsClonedProposal(false);
+      showNotification(wasCloned ? 'Nova proposta criada com sucesso a partir da clonagem!' : 'Proposta oficial salva com sucesso! Botão do PDF habilitado abaixo.');
     }
   };
 
@@ -913,7 +931,138 @@ export default function Propostas({
     setApprovedPaymentMethod('');
     setApprovedInstallmentsDetails('');
     setApprovedDate('');
+    setIsClonedProposal(false);
   };
+
+  const handleStartNewProposal = () => {
+    handleCancel();
+    setIsCreating(true);
+    setIsClonedProposal(false);
+  };
+
+  const handleOpenCloneSelector = () => {
+    if (proposals.length === 0) {
+      showNotification('Nenhuma proposta cadastrada para clonar.');
+      return;
+    }
+    setCloneSearchTerm('');
+    setIsCloneSelectorOpen(true);
+  };
+
+  const handleTriggerCloneInForm = () => {
+    if (items.length > 0 || editingProposalId !== null) {
+      setSourceProposalToClone(null);
+      const baseName = proposalName.trim() || 'Nova Proposta';
+      setNewClonedName(baseName.includes('(Cópia)') ? `${baseName} 2` : `${baseName} (Cópia)`);
+      setIsCloneNameModalOpen(true);
+    } else {
+      handleOpenCloneSelector();
+    }
+  };
+
+  const handleStartCloneFromProposal = (prop: Proposal) => {
+    setSourceProposalToClone(prop);
+    const baseName = prop.name.trim() || 'Nova Proposta';
+    setNewClonedName(baseName.includes('(Cópia)') ? `${baseName} 2` : `${baseName} (Cópia)`);
+    setIsCloneSelectorOpen(false);
+    setIsCloneNameModalOpen(true);
+  };
+
+  const handleConfirmCloneName = () => {
+    const trimmed = newClonedName.trim();
+    if (!trimmed) {
+      showNotification('Por favor, informe o novo nome para a proposta clonada.');
+      return;
+    }
+
+    if (sourceProposalToClone) {
+      const prop = sourceProposalToClone;
+      const clonedItems: ProposalItem[] = prop.items.map((it, idx) => ({
+        ...it,
+        id: Date.now() + idx + Math.floor(Math.random() * 1000)
+      }));
+
+      setItems(clonedItems);
+      setProjectType(prop.projectType || 'editorial');
+      setProposalFreight(prop.freightCost !== undefined && prop.freightCost > 0 ? prop.freightCost : '');
+      setPaymentMethodCash(prop.paymentMethodCash !== undefined ? prop.paymentMethodCash : true);
+      const isCard = prop.paymentMethodCard !== undefined ? prop.paymentMethodCard : (prop.paymentMethodInstallments !== undefined ? prop.paymentMethodInstallments : true);
+      const isPixBoleto = prop.paymentMethodPixBoleto !== undefined ? prop.paymentMethodPixBoleto : (prop.paymentMethodInstallments !== undefined ? prop.paymentMethodInstallments : true);
+      setPaymentMethodCard(isCard);
+      setPaymentMethodPixBoleto(isPixBoleto);
+      setPaymentDiscountPercent(prop.paymentDiscountPercent !== undefined ? prop.paymentDiscountPercent : 0);
+      setPaymentEntryPercent(prop.paymentEntryPercent != null ? prop.paymentEntryPercent : 50);
+      setPaymentInstallments(prop.paymentInstallments != null ? prop.paymentInstallments : 10);
+      setPaymentInterestPercent(prop.paymentInterestPercent != null ? prop.paymentInterestPercent : 10);
+      setPaymentDirectTerms(prop.paymentEntryPercent === 100 ? '' : (prop.paymentDirectTerms || 'Entrada, 30 e 60 dias'));
+      
+      const clonedCardOptions: CardInstallmentOption[] = (prop.cardInstallmentOptions && prop.cardInstallmentOptions.length > 0)
+        ? prop.cardInstallmentOptions.map((o, idx) => ({ ...o, id: String(idx + 1) }))
+        : [{
+            id: '1',
+            installments: prop.paymentInstallments != null ? prop.paymentInstallments : 10,
+            interestPercent: prop.paymentInterestPercent != null ? prop.paymentInterestPercent : 10,
+            withEntry: false
+          }];
+      setCardInstallmentOptions(clonedCardOptions);
+
+      const clonedBoletoOptions: BoletoInstallmentOption[] = (prop.boletoInstallmentOptions && prop.boletoInstallmentOptions.length > 0)
+        ? prop.boletoInstallmentOptions.map((o, idx) => ({ ...o, id: String(idx + 1) }))
+        : [{
+            id: '1',
+            installments: 3,
+            interestPercent: 0,
+            withEntry: true
+          }];
+      setBoletoInstallmentOptions(clonedBoletoOptions);
+
+      setIncludeBoletoInstallments(prop.includeBoletoInstallments !== undefined ? prop.includeBoletoInstallments : false);
+      setPaymentCustomText(prop.paymentCustomText || '');
+      setValidationDays(prop.validationDays != null ? prop.validationDays : 15);
+      setDeliveryDays(prop.deliveryDays != null ? prop.deliveryDays : 30);
+      setBookFeaturesDescription(prop.bookFeaturesDescription || '');
+      setSelectedLeadId(prop.leadId != null ? prop.leadId : '');
+      setClientName(prop.clientName || '');
+      setClientPhone(prop.clientPhone || '');
+      setApprovedValue(undefined);
+      setApprovedPaymentMethod('');
+      setApprovedInstallmentsDetails('');
+      setApprovedDate('');
+    } else {
+      // Cloned from active editor form
+      setItems(prev => prev.map((it, idx) => ({
+        ...it,
+        id: Date.now() + idx + Math.floor(Math.random() * 1000)
+      })));
+    }
+
+    const today = new Date();
+    const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    setProposalDate(todayISO);
+
+    const valD = new Date();
+    valD.setDate(valD.getDate() + 15);
+    const valISO = `${valD.getFullYear()}-${String(valD.getMonth() + 1).padStart(2, '0')}-${String(valD.getDate()).padStart(2, '0')}`;
+    setProposalValidityDate(valISO);
+
+    setProposalName(trimmed);
+    setEditingProposalId(null);
+    setIsClonedProposal(true);
+    setIsCreating(true);
+    setIsCloneNameModalOpen(false);
+    setIsCloneSelectorOpen(false);
+    setSourceProposalToClone(null);
+
+    showNotification('Estrutura clonada! Revise e clique em "Salvar Alterações" para criar a nova proposta.');
+  };
+
+  const filteredProposalsForClone = proposals.filter(p => {
+    if (!cloneSearchTerm.trim()) return true;
+    const term = cloneSearchTerm.toLowerCase();
+    const matchName = p.name.toLowerCase().includes(term);
+    const matchClient = p.clientName ? p.clientName.toLowerCase().includes(term) : false;
+    return matchName || matchClient;
+  });
 
   const serviceItems = items.filter(item => item.type !== 'produto');
   const productItems = items.filter(item => item.type === 'produto');
@@ -944,23 +1093,271 @@ export default function Propostas({
 
   const isApprovedStatus = showOnlyApproved || (editingProposalId !== null && proposals.find(p => p.id === editingProposalId)?.status?.toLowerCase().includes('aprovad'));
 
+  const renderCloneModals = () => (
+    <>
+      {/* Modal para Definir o Novo Nome da Proposta Clonada */}
+      {isCloneNameModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in font-sans">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-lg w-full overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white p-5 flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/20 rounded-xl">
+                  <CloneIcon size={20} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">Clonar Proposta</h3>
+                  <p className="text-xs text-amber-100">Copiar estrutura de itens, valores e condições</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCloneNameModalOpen(false);
+                  setSourceProposalToClone(null);
+                }}
+                className="text-white/80 hover:text-white hover:bg-white/10 p-1.5 rounded-lg transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-amber-900">
+                <Sparkles size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                <span>
+                  Toda a estrutura deste orçamento foi copiada (itens, quantidades, custos, margens, prazos e condições de pagamento). Defina um novo nome para esta proposta:
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Novo Nome da Proposta <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newClonedName}
+                  onChange={(e) => setNewClonedName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleConfirmCloneName();
+                    }
+                  }}
+                  autoFocus
+                  placeholder="Ex: PROJETO NOVO - EDITORA NPE"
+                  className="w-full border-2 border-amber-300 focus:border-amber-500 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-200 transition-all shadow-xs"
+                />
+                <p className="text-[11px] text-slate-500 mt-1.5">
+                  Ao confirmar, os dados serão carregados. Clique no botão <strong>"Salvar Alterações"</strong> para criar a nova proposta no sistema.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCloneNameModalOpen(false);
+                  setSourceProposalToClone(null);
+                }}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCloneName}
+                disabled={!newClonedName.trim()}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-all cursor-pointer ${
+                  newClonedName.trim()
+                    ? 'bg-amber-500 hover:bg-amber-600 text-white active:scale-95'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                <CloneIcon size={15} />
+                <span>Confirmar e Continuar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Selecionar Proposta para Clonar */}
+      {isCloneSelectorOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in font-sans">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30">
+                  <CloneIcon size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">Selecionar Proposta para Clonar</h3>
+                  <p className="text-xs text-slate-400">Escolha um orçamento existente para duplicar sua estrutura completa</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCloneSelectorOpen(false)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Search */}
+            <div className="p-4 border-b border-slate-100 bg-slate-50/50 shrink-0">
+              <div className="relative">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Pesquisar proposta por nome do projeto ou cliente..."
+                  value={cloneSearchTerm}
+                  onChange={(e) => setCloneSearchTerm(e.target.value)}
+                  autoFocus
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-2xs"
+                />
+              </div>
+            </div>
+
+            {/* Proposals List */}
+            <div className="p-4 overflow-y-auto space-y-2.5 flex-1">
+              {filteredProposalsForClone.length === 0 ? (
+                <div className="text-center py-10 text-slate-400 text-xs">
+                  Nenhuma proposta encontrada com o termo pesquisado.
+                </div>
+              ) : (
+                filteredProposalsForClone.map((prop) => (
+                  <div
+                    key={prop.id}
+                    className="p-3.5 rounded-xl border border-slate-200 hover:border-amber-400 bg-white hover:bg-amber-50/30 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs group"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                          {prop.date}
+                        </span>
+                        <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                          {prop.status || 'Sem status'}
+                        </span>
+                        {prop.clientName && (
+                          <span className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md font-medium truncate max-w-[200px]">
+                            Cliente: <strong>{prop.clientName}</strong>
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="font-bold text-sm text-slate-800 truncate group-hover:text-amber-800 transition-colors">
+                        {prop.name}
+                      </h4>
+                      <div className="text-xs text-slate-500 mt-1 flex items-center gap-3">
+                        <span>{prop.items.length} {prop.items.length === 1 ? 'item' : 'itens'}</span>
+                        <span>•</span>
+                        <span className="font-semibold text-slate-700">
+                          Venda: {formatMoney(ceil2(prop.approvedValue !== undefined ? prop.approvedValue : prop.sellPrice))}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleStartCloneFromProposal(prop)}
+                      className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-xs transition-colors shrink-0 cursor-pointer self-end sm:self-auto"
+                    >
+                      <CloneIcon size={14} />
+                      <span>Clonar Esta</span>
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-3.5 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsCloneSelectorOpen(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   if (isCreating) {
     return (
-      <div className="max-w-5xl mx-auto space-y-6 animate-fade-in pb-36">
-        <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+      <div className="max-w-5xl mx-auto space-y-6 animate-fade-in pb-36 font-sans">
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex-1">
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome do Projeto ou Proposta</label>
+            <div className="flex items-center gap-2 mb-1">
+              <label className="text-xs font-bold text-slate-500 uppercase">
+                Nome do Projeto ou Proposta <span className="text-red-500">*</span>
+              </label>
+              {isClonedProposal && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                  <CloneIcon size={12} />
+                  Estrutura Clonada
+                </span>
+              )}
+            </div>
             <input 
               type="text" 
-              className="text-2xl font-bold border-none bg-transparent focus:outline-none focus:ring-0 w-full placeholder-slate-300"
+              className="text-2xl font-bold border-none bg-transparent focus:outline-none focus:ring-0 w-full placeholder-slate-300 text-slate-800"
               placeholder="Ex: PROJETO LIVRO - ARTHUR, O CAMALEÃO"
               value={proposalName}
               onChange={(e) => setProposalName(e.target.value)}
               autoFocus
             />
           </div>
-          <button onClick={handleCancel} className="text-slate-400 hover:text-slate-600 px-4 py-2 cursor-pointer">Cancelar</button>
+
+          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+            <button
+              type="button"
+              onClick={handleStartNewProposal}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+              title="Iniciar uma nova proposta em branco"
+            >
+              <Plus size={14} />
+              <span>+ Nova Proposta</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleTriggerCloneInForm}
+              className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+              title="Clonar toda a estrutura desta proposta e definir um novo nome"
+            >
+              <CloneIcon size={15} />
+              <span>Clonar Proposta</span>
+            </button>
+
+            <button 
+              type="button"
+              onClick={handleCancel} 
+              className="text-slate-400 hover:text-slate-600 px-3 py-2 text-xs font-medium cursor-pointer"
+            >
+              Cancelar
+            </button>
+          </div>
         </div>
+
+        {isClonedProposal && (
+          <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 flex items-center justify-between gap-3 text-amber-900 shadow-xs">
+            <div className="flex items-center gap-2.5 text-xs font-semibold">
+              <CloneIcon size={18} className="text-amber-600 shrink-0" />
+              <span>
+                Você está trabalhando em uma <strong>proposta clonada</strong>. Toda a estrutura original foi copiada. Faça qualquer ajuste necessário nos itens, quantidades ou valores e clique em <strong>"Salvar Alterações"</strong> no menu flutuante para gravá-la como uma nova proposta no sistema.
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Seleção do Tipo de Projeto */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -2353,10 +2750,10 @@ export default function Propostas({
                   type="button"
                   onClick={handleSaveProposal}
                   className="bg-slate-900 hover:bg-slate-800 active:scale-95 text-white px-5 py-2.5 rounded-xl font-bold text-sm md:text-base flex items-center gap-2.5 shadow-2xl hover:shadow-slate-900/50 transition-all cursor-pointer border border-slate-700/80 w-full justify-start"
-                  title={editingProposalId ? 'Salvar Alterações da Proposta' : 'Salvar Nova Proposta'}
+                  title={(editingProposalId || isClonedProposal) ? 'Salvar Alterações da Proposta' : 'Salvar Nova Proposta'}
                 >
                   <Save size={18} className="text-white shrink-0" />
-                  <span className="whitespace-nowrap">{editingProposalId ? 'Salvar Alterações' : 'Salvar Proposta'}</span>
+                  <span className="whitespace-nowrap">{(editingProposalId || isClonedProposal) ? 'Salvar Alterações' : 'Salvar Proposta'}</span>
                 </button>
 
                 {/* Botão 2: Imprimir Proposta (PDF) */}
@@ -2410,6 +2807,9 @@ export default function Propostas({
           </div>,
           document.body
         )}
+
+        {/* Modais de Clonagem */}
+        {renderCloneModals()}
 
         {/* Render PDF Modal inside Editor View if triggered */}
         {selectedProposalForPDF && (
@@ -2513,13 +2913,23 @@ export default function Propostas({
           </p>
         </div>
         {!showOnlyApproved && (
-          <button 
-            onClick={() => setIsCreating(true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-          >
-            <Plus size={15} />
-            Criar Nova Proposta
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={handleStartNewProposal}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            >
+              <Plus size={15} />
+              + Nova Proposta
+            </button>
+            <button 
+              onClick={handleOpenCloneSelector}
+              className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+              title="Clonar Proposta existente com toda a sua estrutura"
+            >
+              <CloneIcon size={15} />
+              <span>Clonar Proposta</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -2765,6 +3175,13 @@ export default function Propostas({
 
                           <div className="flex gap-1 ml-auto md:ml-0 md:mt-2 lg:mt-0">
                             <button 
+                              onClick={() => handleStartCloneFromProposal(prop)} 
+                              className="text-amber-300 hover:text-amber-100 hover:bg-amber-950/40 border border-transparent hover:border-amber-800/50 p-2 rounded-lg transition-colors cursor-pointer"
+                              title="Clonar esta proposta"
+                            >
+                              <CloneIcon size={15}/>
+                            </button>
+                            <button 
                               onClick={() => handleEditProposal(prop)} 
                               className="text-blue-200 hover:text-white hover:bg-blue-900/60 border border-transparent hover:border-blue-800 p-2 rounded-lg transition-colors cursor-pointer"
                               title="Editar"
@@ -2789,6 +3206,9 @@ export default function Propostas({
           })
         )}
       </div>
+
+      {/* Modais de Clonagem */}
+      {renderCloneModals()}
 
       {/* PDF Modal Triggered conditionally */}
       {selectedProposalForPDF && (
